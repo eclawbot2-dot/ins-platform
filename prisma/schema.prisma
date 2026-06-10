@@ -1,0 +1,977 @@
+// ins-platform — insurance agency management system
+// PostgreSQL 16 via @prisma/adapter-pg. All currency columns are
+// Decimal -> NUMERIC(12,2) so sums stay exact.
+
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  // Prisma 7 forbids `url` in the schema; the connection string lives in
+  // prisma.config.ts (CLI/Migrate) and in the PrismaPg adapter
+  // (src/lib/prisma.ts) for the client. Both read env("DATABASE_URL").
+  provider = "postgresql"
+}
+
+// ── Enums ────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  PRODUCER
+  CSR
+}
+
+enum ClientType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+enum ClientStatus {
+  PROSPECT
+  ACTIVE
+  INACTIVE
+  FORMER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+}
+
+enum OpportunityStage {
+  NEW
+  CONTACTED
+  QUOTING
+  PROPOSAL
+  BOUND
+  LOST
+}
+
+enum ActivityType {
+  NOTE
+  CALL
+  EMAIL
+  MEETING
+  SYSTEM
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum LineOfBusiness {
+  // Personal lines
+  AUTO
+  HOME
+  RENTERS
+  UMBRELLA
+  LIFE
+  HEALTH
+  // Commercial lines
+  GENERAL_LIABILITY
+  COMMERCIAL_PROPERTY
+  BOP
+  WORKERS_COMP
+  COMMERCIAL_AUTO
+  CYBER
+  PROFESSIONAL
+  INLAND_MARINE
+}
+
+enum PolicyStatus {
+  QUOTE
+  BOUND
+  ACTIVE
+  RENEWED
+  CANCELLED
+  EXPIRED
+  NON_RENEWED
+}
+
+enum BillingType {
+  AGENCY_BILL
+  DIRECT_BILL
+}
+
+enum QuoteRequestStatus {
+  OPEN
+  QUOTED
+  PRESENTED
+  BOUND
+  LOST
+}
+
+enum QuoteStatus {
+  DRAFT
+  SUBMITTED
+  RECEIVED
+  PRESENTED
+  ACCEPTED
+  DECLINED
+}
+
+enum RenewalStatus {
+  PENDING_REVIEW
+  REMARKETING
+  QUOTED
+  RENEWED
+  LOST
+}
+
+enum ClaimStatus {
+  REPORTED
+  OPEN
+  UNDER_REVIEW
+  APPROVED
+  DENIED
+  CLOSED
+}
+
+enum AppointmentStatus {
+  APPOINTED
+  PENDING
+  TERMINATED
+  NOT_APPOINTED
+}
+
+enum StatementStatus {
+  DRAFT
+  RECONCILING
+  RECONCILED
+}
+
+enum MatchStatus {
+  UNMATCHED
+  MATCHED
+  VARIANCE
+}
+
+enum TransactionType {
+  NEW_BUSINESS
+  RENEWAL
+  ENDORSEMENT
+  CANCELLATION
+  AUDIT
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  VOID
+}
+
+enum DocType {
+  POLICY_DOC
+  APPLICATION
+  ENDORSEMENT
+  CERTIFICATE
+  CLAIM_DOC
+  CORRESPONDENCE
+  ID_CARD
+  LOSS_RUN
+  OTHER
+}
+
+enum LicenseClass {
+  PROPERTY_CASUALTY
+  LIFE_HEALTH
+  PERSONAL_LINES
+  SURPLUS_LINES
+  ADJUSTER
+}
+
+enum CampaignChannel {
+  REFERRAL
+  WEB
+  SOCIAL
+  EMAIL
+  DIRECT_MAIL
+  EVENT
+  PAID_SEARCH
+  OTHER
+}
+
+enum IntegrationProvider {
+  XERO
+}
+
+enum ConnectionStatus {
+  CONNECTED
+  TOKEN_EXPIRED
+  ERROR
+  DISCONNECTED
+}
+
+enum SyncStatus {
+  RUNNING
+  OK
+  FAILED
+  PARTIAL
+}
+
+// ── Auth / users ─────────────────────────────────────────────────────
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  name              String
+  password          String
+  role              Role      @default(CSR)
+  active            Boolean   @default(true)
+  phone             String?
+  npn               String?
+  defaultSplitPct   Decimal   @default(100) @db.Decimal(5, 2)
+  lastLoginAt       DateTime?
+  sessionsRevokedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  resetTokens        PasswordResetToken[]
+  licenses           License[]
+  producedPolicies   Policy[]             @relation("PolicyProducer")
+  servicedPolicies   Policy[]             @relation("PolicyCsr")
+  producedClients    Client[]             @relation("ClientProducer")
+  servicedClients    Client[]             @relation("ClientCsr")
+  assignedLeads      Lead[]
+  opportunities      Opportunity[]
+  activities         Activity[]
+  assignedTasks      Task[]               @relation("TaskAssignee")
+  createdTasks       Task[]               @relation("TaskCreator")
+  quoteRequests      QuoteRequest[]
+  renewals           Renewal[]
+  splits             PolicyProducerSplit[]
+  issuedCertificates Certificate[]
+  documents          Document[]
+  notifications      Notification[]
+  auditLogs          AuditLog[]
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  actorEmail String?
+  action     String
+  entityType String?
+  entityId   String?
+  detail     String?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
+
+// ── Agency settings ──────────────────────────────────────────────────
+
+model AgencyProfile {
+  id            String   @id @default("agency")
+  name          String   @default("Ins Platform Agency")
+  addressLine1  String?
+  addressLine2  String?
+  city          String?
+  state         String?
+  zip           String?
+  phone         String?
+  email         String?
+  website       String?
+  licenseNumber String?
+  updatedAt     DateTime @updatedAt
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  name      String
+  subject   String
+  body      String
+  updatedAt DateTime @updatedAt
+}
+
+model LeadIntakeKey {
+  id         String    @id @default(cuid())
+  label      String
+  key        String    @unique
+  active     Boolean   @default(true)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String?
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+// ── CRM ──────────────────────────────────────────────────────────────
+
+model Client {
+  id           String       @id @default(cuid())
+  type         ClientType   @default(INDIVIDUAL)
+  status       ClientStatus @default(PROSPECT)
+  name         String
+  firstName    String?
+  lastName     String?
+  businessName String?
+  email        String?
+  phone        String?
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  zip          String?
+  dateOfBirth  DateTime?
+  industry     String?
+  source       String?
+  notes        String?
+  producerId   String?
+  producer     User?        @relation("ClientProducer", fields: [producerId], references: [id], onDelete: SetNull)
+  csrId        String?
+  csr          User?        @relation("ClientCsr", fields: [csrId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  contacts      Contact[]
+  leads         Lead[]
+  opportunities Opportunity[]
+  policies      Policy[]
+  quoteRequests QuoteRequest[]
+  claims        Claim[]
+  invoices      Invoice[]
+  documents     Document[]
+  activities    Activity[]
+  tasks         Task[]
+  certificates  Certificate[]
+  referrals     Referral[]
+
+  @@index([name])
+  @@index([status])
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  title     String?
+  email     String?
+  phone     String?
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Lead {
+  id             String          @id @default(cuid())
+  firstName      String
+  lastName       String
+  email          String?
+  phone          String?
+  zip            String?
+  lineOfBusiness LineOfBusiness?
+  message        String?
+  source         String?
+  status         LeadStatus      @default(NEW)
+  score          Int             @default(0)
+  assignedToId   String?
+  assignedTo     User?           @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  campaignId     String?
+  campaign       Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  clientId       String?
+  client         Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  opportunities Opportunity[]
+  quoteRequests QuoteRequest[]
+  activities    Activity[]
+  tasks         Task[]
+  referrals     Referral[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Opportunity {
+  id                String           @id @default(cuid())
+  name              String
+  stage             OpportunityStage @default(NEW)
+  lineOfBusiness    LineOfBusiness
+  premiumEstimate   Decimal?         @db.Decimal(12, 2)
+  expectedCloseDate DateTime?
+  lostReason        String?
+  clientId          String?
+  client            Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  leadId            String?
+  lead              Lead?            @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  ownerId           String
+  owner             User             @relation(fields: [ownerId], references: [id])
+  boundPolicyId     String?          @unique
+  boundPolicy       Policy?          @relation(fields: [boundPolicyId], references: [id], onDelete: SetNull)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  activities Activity[]
+
+  @@index([stage])
+}
+
+model Activity {
+  id            String       @id @default(cuid())
+  type          ActivityType @default(NOTE)
+  subject       String
+  body          String?
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  clientId      String?
+  client        Client?      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  leadId        String?
+  lead          Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  policyId      String?
+  policy        Policy?      @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  claimId       String?
+  claim         Claim?       @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  createdAt     DateTime     @default(now())
+
+  @@index([createdAt])
+  @@index([clientId])
+}
+
+model Task {
+  id           String       @id @default(cuid())
+  title        String
+  detail       String?
+  dueDate      DateTime
+  status       TaskStatus   @default(OPEN)
+  priority     TaskPriority @default(NORMAL)
+  assignedToId String?
+  assignedTo   User?        @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdById  String?
+  createdBy    User?        @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  clientId     String?
+  client       Client?      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  leadId       String?
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  policyId     String?
+  policy       Policy?      @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  claimId      String?
+  claim        Claim?       @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  renewalId    String?
+  renewal      Renewal?     @relation(fields: [renewalId], references: [id], onDelete: Cascade)
+  completedAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([status, dueDate])
+  @@index([assignedToId])
+}
+
+// ── Carriers ─────────────────────────────────────────────────────────
+
+model Carrier {
+  id                   String            @id @default(cuid())
+  name                 String            @unique
+  naicCode             String?
+  amBestRating         String?
+  portalUrl            String?
+  phone                String?
+  paymentTermsDays     Int               @default(30)
+  appointmentStatus    AppointmentStatus @default(NOT_APPOINTED)
+  appointedAt          DateTime?
+  appointmentExpiresAt DateTime?
+  isMga                Boolean           @default(false)
+  notes                String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  contacts   CarrierContact[]
+  schedules  CommissionSchedule[]
+  policies   Policy[]
+  quotes     Quote[]
+  statements CommissionStatement[]
+}
+
+model CarrierContact {
+  id        String  @id @default(cuid())
+  carrierId String
+  carrier   Carrier @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+  name      String
+  role      String?
+  email     String?
+  phone     String?
+}
+
+model CommissionSchedule {
+  id             String         @id @default(cuid())
+  carrierId      String
+  carrier        Carrier        @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+  lineOfBusiness LineOfBusiness
+  newPct         Decimal        @db.Decimal(5, 2)
+  renewalPct     Decimal        @db.Decimal(5, 2)
+
+  @@unique([carrierId, lineOfBusiness])
+}
+
+// ── Policies ─────────────────────────────────────────────────────────
+
+model Policy {
+  id                 String         @id @default(cuid())
+  policyNumber       String         @unique
+  clientId           String
+  client             Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  carrierId          String
+  carrier            Carrier        @relation(fields: [carrierId], references: [id])
+  mga                String?
+  lineOfBusiness     LineOfBusiness
+  status             PolicyStatus   @default(QUOTE)
+  billingType        BillingType    @default(DIRECT_BILL)
+  premium            Decimal        @db.Decimal(12, 2)
+  commissionRatePct  Decimal        @db.Decimal(5, 2)
+  commissionAmount   Decimal        @db.Decimal(12, 2)
+  isNewBusiness      Boolean        @default(true)
+  effectiveDate      DateTime
+  expirationDate     DateTime
+  boundAt            DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  producerId         String
+  producer           User           @relation("PolicyProducer", fields: [producerId], references: [id])
+  csrId              String?
+  csr                User?          @relation("PolicyCsr", fields: [csrId], references: [id], onDelete: SetNull)
+  renewalOfId        String?
+  renewalOf          Policy?        @relation("PolicyRenewalChain", fields: [renewalOfId], references: [id], onDelete: SetNull)
+  renewedBy          Policy[]       @relation("PolicyRenewalChain")
+  notes              String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  endorsements         Endorsement[]
+  claims               Claim[]
+  renewals             Renewal[]
+  splits               PolicyProducerSplit[]
+  certificates         Certificate[]
+  certificateCoverages CertificateCoverage[]
+  invoices             Invoice[]
+  documents            Document[]
+  activities           Activity[]
+  tasks                Task[]
+  statementLines       CommissionStatementLine[]
+  boundFromQuote       Quote?                    @relation("QuoteBoundPolicy")
+  boundFromOpportunity Opportunity?
+
+  @@index([status])
+  @@index([expirationDate])
+  @@index([clientId])
+}
+
+model Endorsement {
+  id            String   @id @default(cuid())
+  policyId      String
+  policy        Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  effectiveDate DateTime
+  description   String
+  premiumChange Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt     DateTime @default(now())
+}
+
+model PolicyProducerSplit {
+  id         String  @id @default(cuid())
+  policyId   String
+  policy     Policy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  producerId String
+  producer   User    @relation(fields: [producerId], references: [id], onDelete: Cascade)
+  pct        Decimal @db.Decimal(5, 2)
+
+  @@unique([policyId, producerId])
+}
+
+// ── Quoting ──────────────────────────────────────────────────────────
+
+model QuoteRequest {
+  id             String             @id @default(cuid())
+  clientId       String?
+  client         Client?            @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  leadId         String?
+  lead           Lead?              @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  lineOfBusiness LineOfBusiness
+  status         QuoteRequestStatus @default(OPEN)
+  effectiveDate  DateTime?
+  notes          String?
+  ownerId        String
+  owner          User               @relation(fields: [ownerId], references: [id])
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  quotes Quote[]
+}
+
+model Quote {
+  id              String       @id @default(cuid())
+  quoteRequestId  String
+  quoteRequest    QuoteRequest @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  carrierId       String
+  carrier         Carrier      @relation(fields: [carrierId], references: [id])
+  premium         Decimal      @db.Decimal(12, 2)
+  status          QuoteStatus  @default(DRAFT)
+  validUntil      DateTime?
+  coverageSummary String?
+  notes           String?
+  boundPolicyId   String?      @unique
+  boundPolicy     Policy?      @relation("QuoteBoundPolicy", fields: [boundPolicyId], references: [id], onDelete: SetNull)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+// ── Renewals ─────────────────────────────────────────────────────────
+
+model Renewal {
+  id              String        @id @default(cuid())
+  policyId        String
+  policy          Policy        @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  expirationDate  DateTime
+  status          RenewalStatus @default(PENDING_REVIEW)
+  assignedToId    String?
+  assignedTo      User?         @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  tasks Task[]
+
+  @@unique([policyId, expirationDate])
+  @@index([status])
+  @@index([expirationDate])
+}
+
+// ── Claims ───────────────────────────────────────────────────────────
+
+model Claim {
+  id              String      @id @default(cuid())
+  claimNumber     String      @unique
+  policyId        String
+  policy          Policy      @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  clientId        String
+  client          Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  carrierClaimRef String?
+  status          ClaimStatus @default(REPORTED)
+  dateOfLoss      DateTime
+  reportedAt      DateTime    @default(now())
+  description     String
+  adjusterName    String?
+  adjusterPhone   String?
+  adjusterEmail   String?
+  reserveAmount   Decimal?    @db.Decimal(12, 2)
+  paidAmount      Decimal?    @db.Decimal(12, 2)
+  closedAt        DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  activities Activity[]
+  tasks      Task[]
+  documents  Document[]
+
+  @@index([status])
+}
+
+// ── Commissions ──────────────────────────────────────────────────────
+
+model CommissionStatement {
+  id            String          @id @default(cuid())
+  carrierId     String
+  carrier       Carrier         @relation(fields: [carrierId], references: [id])
+  statementDate DateTime
+  periodLabel   String?
+  totalAmount   Decimal         @db.Decimal(12, 2)
+  status        StatementStatus @default(DRAFT)
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  lines CommissionStatementLine[]
+}
+
+model CommissionStatementLine {
+  id               String              @id @default(cuid())
+  statementId      String
+  statement        CommissionStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  policyNumber     String
+  insuredName      String?
+  transactionType  TransactionType     @default(NEW_BUSINESS)
+  premium          Decimal?            @db.Decimal(12, 2)
+  commissionAmount Decimal             @db.Decimal(12, 2)
+  policyId         String?
+  policy           Policy?             @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  matchStatus      MatchStatus         @default(UNMATCHED)
+  varianceAmount   Decimal?            @db.Decimal(12, 2)
+
+  @@index([statementId])
+}
+
+// ── Certificates (ACORD 25 model) ────────────────────────────────────
+
+model CertificateHolder {
+  id           String   @id @default(cuid())
+  name         String
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  zip          String?
+  email        String?
+  createdAt    DateTime @default(now())
+
+  certificates Certificate[]
+}
+
+model Certificate {
+  id                   String            @id @default(cuid())
+  certNumber           String            @unique
+  clientId             String
+  client               Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  policyId             String?
+  policy               Policy?           @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  holderId             String
+  holder               CertificateHolder @relation(fields: [holderId], references: [id])
+  descriptionOfOps     String?
+  additionalInsured    Boolean           @default(false)
+  waiverOfSubrogation  Boolean           @default(false)
+  issuedAt             DateTime          @default(now())
+  issuedById           String
+  issuedBy             User              @relation(fields: [issuedById], references: [id])
+
+  coverages CertificateCoverage[]
+}
+
+model CertificateCoverage {
+  id             String      @id @default(cuid())
+  certificateId  String
+  certificate    Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  policyId       String?
+  policy         Policy?     @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  coverageType   String
+  carrierName    String
+  policyNumber   String
+  effectiveDate  DateTime
+  expirationDate DateTime
+  limitsText     String
+}
+
+// ── Documents ────────────────────────────────────────────────────────
+
+model Document {
+  id           String   @id @default(cuid())
+  fileName     String
+  storedPath   String
+  mimeType     String
+  sizeBytes    Int
+  docType      DocType  @default(OTHER)
+  clientId     String?
+  client       Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  policyId     String?
+  policy       Policy?  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  claimId      String?
+  claim        Claim?   @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+// ── Compliance ───────────────────────────────────────────────────────
+
+model License {
+  id              String       @id @default(cuid())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  state           String
+  licenseNumber   String
+  npn             String?
+  licenseClass    LicenseClass @default(PROPERTY_CASUALTY)
+  issuedAt        DateTime?
+  expiresAt       DateTime
+  ceRequiredHours Int          @default(24)
+  notes           String?
+  createdAt       DateTime     @default(now())
+
+  ceCredits CeCredit[]
+
+  @@index([expiresAt])
+}
+
+model CeCredit {
+  id          String   @id @default(cuid())
+  licenseId   String
+  license     License  @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  courseName  String
+  provider    String?
+  hours       Decimal  @db.Decimal(5, 2)
+  isEthics    Boolean  @default(false)
+  completedAt DateTime
+}
+
+model EoPolicy {
+  id             String   @id @default(cuid())
+  carrierName    String
+  policyNumber   String
+  limitEach      Decimal  @db.Decimal(14, 2)
+  limitAggregate Decimal  @db.Decimal(14, 2)
+  premium        Decimal  @db.Decimal(12, 2)
+  effectiveDate  DateTime
+  expirationDate DateTime
+  notes          String?
+  createdAt      DateTime @default(now())
+}
+
+// ── Marketing ────────────────────────────────────────────────────────
+
+model Campaign {
+  id        String          @id @default(cuid())
+  name      String
+  channel   CampaignChannel @default(OTHER)
+  budget    Decimal?        @db.Decimal(12, 2)
+  startDate DateTime?
+  endDate   DateTime?
+  notes     String?
+  createdAt DateTime        @default(now())
+
+  leads Lead[]
+}
+
+model Referral {
+  id           String   @id @default(cuid())
+  referrerName String
+  clientId     String?
+  client       Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  leadId       String?
+  lead         Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  rewardAmount Decimal? @db.Decimal(12, 2)
+  notes        String?
+  createdAt    DateTime @default(now())
+}
+
+// ── Accounting ───────────────────────────────────────────────────────
+
+model Invoice {
+  id             String        @id @default(cuid())
+  invoiceNumber  String        @unique
+  clientId       String
+  client         Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  policyId       String?
+  policy         Policy?       @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  status         InvoiceStatus @default(DRAFT)
+  issueDate      DateTime      @default(now())
+  dueDate        DateTime
+  amount         Decimal       @db.Decimal(12, 2)
+  paidAmount     Decimal       @default(0) @db.Decimal(12, 2)
+  paidAt         DateTime?
+  xeroInvoiceId  String?
+  xeroPaymentUrl String?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  lines InvoiceLine[]
+
+  @@index([status])
+}
+
+model InvoiceLine {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal @default(1) @db.Decimal(10, 2)
+  unitAmount  Decimal @db.Decimal(12, 2)
+  amount      Decimal @db.Decimal(12, 2)
+}
+
+// ── Integrations ─────────────────────────────────────────────────────
+
+model IntegrationConnection {
+  id              String              @id @default(cuid())
+  provider        IntegrationProvider
+  status          ConnectionStatus    @default(CONNECTED)
+  accessTokenEnc  String
+  refreshTokenEnc String?
+  expiresAt       DateTime?
+  scope           String?
+  xeroTenantId    String?
+  organisation    String?
+  lastSyncedAt    DateTime?
+  lastSyncNote    String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  syncJobs    SyncJob[]
+  syncCursors SyncCursor[]
+}
+
+model SyncJob {
+  id             String                @id @default(cuid())
+  connectionId   String
+  connection     IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  kind           String
+  status         SyncStatus            @default(RUNNING)
+  startedAt      DateTime              @default(now())
+  completedAt    DateTime?
+  recordsRead    Int                   @default(0)
+  recordsWritten Int                   @default(0)
+  cursor         String?
+  error          String?
+
+  @@index([connectionId, kind])
+}
+
+model SyncCursor {
+  id           String                @id @default(cuid())
+  connectionId String
+  connection   IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  kind         String
+  cursor       String
+
+  @@unique([connectionId, kind])
+}
+
+model WorkspaceConnection {
+  id          String   @id @default("workspace")
+  enabled     Boolean  @default(false)
+  subject     String?
+  domain      String?
+  status      String?
+  capGmail    Boolean  @default(true)
+  capCalendar Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+}

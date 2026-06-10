@@ -1,0 +1,123 @@
+import NextAuth, { type NextAuthConfig } from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import type { Role } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { consumeRateLimit, resetRateLimit } from "@/lib/rate-limit";
+import { log } from "@/lib/log";
+
+const config: NextAuthConfig = {
+  session: {
+    strategy: "jwt",
+    // 8-hour bound: a full workday, then re-auth.
+    maxAge: 60 * 60 * 8,
+  },
+  pages: { signIn: "/login" },
+  trustHost: true,
+  providers: [
+    Credentials({
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials, request) {
+        const email = (credentials?.email as string | undefined)?.trim().toLowerCase();
+        const password = credentials?.password as string | undefined;
+        if (!email || !password) return null;
+
+        // Bound brute-force attempts before paying the bcrypt cost:
+        // sliding window on (ip, email) — 8 tries per 15 min.
+        const headers = (request as { headers?: Headers })?.headers;
+        const ip =
+          headers?.get?.("cf-connecting-ip") ??
+          headers?.get?.("x-forwarded-for")?.split(",")[0]?.trim() ??
+          "?";
+        const key = `login:${ip}:${email}`;
+        const limit = consumeRateLimit(key, { limit: 8, windowMs: 15 * 60 * 1000 });
+        if (!limit.allowed) {
+          log.warn("auth: rate-limit hit at login", { module: "auth", ip });
+          return null;
+        }
+
+        const user = await prisma.user.findUnique({
+          where: { email },
+          select: { id: true, name: true, email: true, password: true, role: true, active: true },
+        });
+        if (!user || !user.active) return null;
+
+        const ok = await bcrypt.compare(password, user.password);
+        if (!ok) return null;
+
+        resetRateLimit(key);
+        prisma.user
+          .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+          .catch(() => {/* best-effort */});
+        prisma.auditLog
+          .create({ data: { userId: user.id, actorEmail: user.email, action: "LOGIN", ip } })
+          .catch(() => {/* best-effort */});
+
+        return { id: user.id, name: user.name, email: user.email, role: user.role };
+      },
+    }),
+  ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.userId = (user as { id: string }).id;
+        token.role = (user as { role?: Role }).role ?? "CSR";
+        token.iat = Math.floor(Date.now() / 1000);
+      }
+      // Session-revocation + live role refresh — a deactivated user or
+      // bumped sessionsRevokedAt invalidates the token immediately.
+      if (token.userId && typeof token.iat === "number") {
+        try {
+          const u = await prisma.user.findUnique({
+            where: { id: token.userId as string },
+            select: { sessionsRevokedAt: true, active: true, role: true },
+          });
+          if (!u || !u.active) return null;
+          if (u.sessionsRevokedAt && Math.floor(u.sessionsRevokedAt.getTime() / 1000) > (token.iat as number)) {
+            return null;
+          }
+          token.role = u.role;
+        } catch {
+          /* let the token through on a DB blip */
+        }
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token) {
+        const augmented = session as { userId?: string; role?: Role };
+        augmented.userId = token.userId as string | undefined;
+        augmented.role = (token.role as Role | undefined) ?? "CSR";
+      }
+      return session;
+    },
+  },
+};
+
+export const { handlers, auth, signIn, signOut } = NextAuth(config);
+
+export { isSafeRedirect } from "@/lib/redirect";
+
+/** Session shape with our custom claims. */
+export type AppSession = {
+  userId: string;
+  role: Role;
+  user?: { name?: string | null; email?: string | null } | null;
+};
+
+/** Require a signed-in session in a server component / action. Throws if absent. */
+export async function requireSession(): Promise<AppSession> {
+  const session = (await auth()) as (AppSession & { user?: { name?: string | null; email?: string | null } }) | null;
+  if (!session?.userId) throw new Error("Not authenticated");
+  return session;
+}
+
+/** Require ADMIN role. Throws on anything else. */
+export async function requireAdmin(): Promise<AppSession> {
+  const session = await requireSession();
+  if (session.role !== "ADMIN") throw new Error("Admin access required");
+  return session;
+}
