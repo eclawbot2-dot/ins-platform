@@ -1,5 +1,5 @@
 /**
- * The app's canonical PUBLIC base URL (https://ins-app.jahdev.com),
+ * The app's canonical PUBLIC base URL (https://ins.jahdev.com),
  * with any trailing slash stripped.
  *
  * Behind the Cloudflare tunnel a Route Handler's `req.url` / `url.origin`

@@ -8,12 +8,15 @@ import { addDays } from "@/lib/domain/dates";
 import type { LineOfBusiness } from "@prisma/client";
 
 /**
- * Public lead-intake API — the marketing site (https://ins.jahdev.com)
- * posts here. Auth: header X-Lead-Key must match env LEAD_INTAKE_KEY or
- * an active DB-managed key (Settings → Lead intake keys).
+ * Public lead-intake API — the marketing site
+ * (https://ins-website-sandy.vercel.app) posts here via a SERVER-SIDE
+ * proxy, so browser CORS is not strictly required; the headers below
+ * cover a direct-from-browser fallback. Auth: header X-Lead-Key must
+ * match env LEAD_INTAKE_KEY or an active DB-managed key (Settings →
+ * Lead intake keys).
  */
 
-const ALLOWED_ORIGIN = "https://ins.jahdev.com";
+const ALLOWED_ORIGIN = "https://ins-website-sandy.vercel.app";
 
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": ALLOWED_ORIGIN,

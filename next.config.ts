@@ -5,8 +5,8 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       // Local dev + public Cloudflare-tunnel host. The app is reached at
-      // https://ins-app.jahdev.com but the server binds localhost:3220.
-      allowedOrigins: ["localhost:3220", "ins-app.jahdev.com"],
+      // https://ins.jahdev.com but the server binds localhost:3220.
+      allowedOrigins: ["localhost:3220", "ins.jahdev.com"],
     },
   },
 };

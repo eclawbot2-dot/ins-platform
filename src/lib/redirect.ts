@@ -18,7 +18,7 @@ export function isSafeRedirect(url: string): boolean {
 /**
  * Proxy-safe in-app redirect (303 See Other by default).
  *
- * This app runs behind a Cloudflare tunnel (public ins-app.jahdev.com ->
+ * This app runs behind a Cloudflare tunnel (public ins.jahdev.com ->
  * localhost:3220). Inside a Route Handler, `req.url`'s host is the
  * INTERNAL origin, and `NextResponse.redirect(new URL(path, req.url))`
  * serializes that absolute URL into the `Location` header — sending the
