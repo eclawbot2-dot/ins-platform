@@ -17,7 +17,10 @@ import { captureException, log } from "@/lib/log";
 import { runSyncJob, getCursor, setCursor, type SyncJobResult } from "@/lib/integrations/sync-job";
 import { ensureXeroTenant, getXeroAccessToken, isXeroConfigured, xeroHeaders } from "./auth";
 import { xeroDate, xeroDateToIso, xeroGetAllPages } from "./paging";
+import { mapXeroInvoiceStatus } from "./status";
 import { toNum } from "@/lib/money";
+
+export { mapXeroInvoiceStatus } from "./status";
 
 const API = "https://api.xero.com/api.xro/2.0";
 
@@ -30,37 +33,6 @@ type XeroInvoice = {
   FullyPaidOnDate?: string;
   UpdatedDateUTC?: string;
 };
-
-type LocalInvoiceStatus = "DRAFT" | "SENT" | "PARTIAL" | "PAID" | "VOID";
-
-/**
- * Map a Xero ACCREC status onto the local Invoice row. Pure so the
- * drift rules are unit-testable without the network:
- *   PAID                       → PAID (paidAt = FullyPaidOnDate > existing > now)
- *   VOIDED/DELETED             → VOID, paidAt cleared
- *   AUTHORISED, partial AmountPaid > 0 → PARTIAL
- *   AUTHORISED, no payment     → SENT (receivable open)
- *   anything else              → null (no change)
- */
-export function mapXeroInvoiceStatus(
-  xero: { Status?: string; AmountPaid?: number },
-  local: { status: LocalInvoiceStatus; paidAt: Date | null },
-  fullyPaidOn: Date | null,
-  now: Date = new Date(),
-): { status: LocalInvoiceStatus; paidAt: Date | null } | null {
-  if (xero.Status === "PAID") {
-    return { status: "PAID", paidAt: fullyPaidOn ?? local.paidAt ?? now };
-  }
-  if (xero.Status === "VOIDED" || xero.Status === "DELETED") {
-    return { status: "VOID", paidAt: null };
-  }
-  if (xero.Status === "AUTHORISED") {
-    if ((xero.AmountPaid ?? 0) > 0) return { status: "PARTIAL", paidAt: null };
-    if (local.status === "DRAFT" || local.status === "PAID") return { status: "SENT", paidAt: null };
-    return null;
-  }
-  return null;
-}
 
 export async function pushInvoicesToXero(connectionId: string): Promise<SyncJobResult> {
   const out = await runSyncJob(connectionId, "xero.invoices.push", async () => {

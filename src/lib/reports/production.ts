@@ -6,7 +6,6 @@
  * shared accounts credit both producers proportionally.
  */
 
-import { prisma } from "@/lib/prisma";
 import { roundMoney, toNum } from "@/lib/money";
 import { splitAmounts } from "@/lib/domain/commissions";
 
@@ -69,6 +68,7 @@ export function allocateProduction(policies: ReadonlyArray<ProductionPolicy>): P
 }
 
 export async function producerProduction(args: { from?: Date; to?: Date } = {}): Promise<ProductionRow[]> {
+  const { prisma } = await import("@/lib/prisma");
   const policies = await prisma.policy.findMany({
     where: {
       status: { notIn: ["QUOTE"] },

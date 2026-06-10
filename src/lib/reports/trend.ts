@@ -4,7 +4,6 @@
  * policies whose effective date falls in the window.
  */
 
-import { prisma } from "@/lib/prisma";
 import { roundMoney, toNum } from "@/lib/money";
 
 export type TrendPolicy = {
@@ -51,6 +50,7 @@ export function monthlyTrend(policies: ReadonlyArray<TrendPolicy>, months = 12, 
 }
 
 export async function premiumTrend(months = 12): Promise<TrendMonth[]> {
+  const { prisma } = await import("@/lib/prisma");
   const now = new Date();
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1));
   const policies = await prisma.policy.findMany({

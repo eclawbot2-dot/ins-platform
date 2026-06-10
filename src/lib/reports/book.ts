@@ -4,7 +4,6 @@
  * (groupBook) so it's unit-testable; the wrapper fetches from Prisma.
  */
 
-import { prisma } from "@/lib/prisma";
 import { roundMoney, toNum } from "@/lib/money";
 import { LOB_LABELS } from "@/lib/labels";
 
@@ -49,6 +48,8 @@ export function groupBook(policies: ReadonlyArray<BookPolicyRow>, by: BookGroupB
 }
 
 export async function bookOfBusiness(by: BookGroupBy): Promise<{ rows: BookRow[]; totalPremium: number; totalPolicies: number }> {
+  // Lazy import keeps this module pure-importable for unit tests.
+  const { prisma } = await import("@/lib/prisma");
   const policies = await prisma.policy.findMany({
     where: { status: { in: ["ACTIVE", "BOUND"] } },
     select: {

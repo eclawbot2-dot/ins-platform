@@ -1,0 +1,107 @@
+# RUNBOOK — ins-platform
+
+Operations guide for the host running https://ins.jahdev.com.
+
+## Topology
+
+```
+Internet → Cloudflare tunnel (ins.jahdev.com) → localhost:3220 (Next.js) → PostgreSQL 16 (127.0.0.1:5432/ins)
+```
+
+## Services (Windows)
+
+Intended service layout (register with nssm or `sc.exe` when promoting to
+always-on; not yet installed by this repo):
+
+| Service | Command | Notes |
+| --- | --- | --- |
+| `ins-next` | `npm run start` in `C:\Users\bot\Projects\ins-platform` | Port 3220; needs `.env` present |
+| `ins-cloudflared` | `cloudflared tunnel run <tunnel>` | Maps ins.jahdev.com → http://localhost:3220 |
+
+Manual run (foreground):
+
+```bash
+cd C:/Users/bot/Projects/ins-platform
+npm run build && npm run start
+```
+
+## Environment (.env)
+
+| Key | Required | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | yes | `postgresql://ins:ins_dev@127.0.0.1:5432/ins?schema=public` |
+| `AUTH_SECRET` | yes | `openssl rand -base64 32`; also keys integration-token encryption |
+| `NEXTAUTH_URL` / `APP_URL` | yes | `https://ins.jahdev.com` — all absolute URLs derive from this |
+| `AUTH_TRUST_HOST` | yes | `true` (behind the tunnel) |
+| `EMAIL_TRANSPORT` | no | `log` (default, no sends) or `resend` |
+| `RESEND_API_KEY` | for resend | Send-only key; **verify ins.jahdev.com in Resend first** |
+| `EMAIL_FROM` | no | `no-reply@ins.jahdev.com` — never braetr.com |
+| `LEAD_INTAKE_KEY` | yes | Shared secret for `POST /api/public/leads` |
+| `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` | for Xero | See Xero setup below |
+| `GOOGLE_WORKSPACE_SA_KEY_FILE` | no | Default `C:/Users/bot/secrets/ins-workspace-sa.json`; app degrades cleanly when absent |
+| `GOOGLE_WORKSPACE_SUBJECT` | no | DWD impersonation user (can also be set in Settings → Integrations) |
+
+## Database
+
+```bash
+# Create role + database (one-time, as postgres superuser)
+psql -U postgres -c "CREATE ROLE ins LOGIN PASSWORD 'ins_dev';"
+psql -U postgres -c "CREATE DATABASE ins OWNER ins;"
+
+# Apply migrations / reseed
+npm run db:migrate
+npm run db:seed        # DESTRUCTIVE: wipes and reloads demo data
+```
+
+Backups: `pg_dump -U ins -d ins -F c -f ins-$(date +%F).dump`.
+
+## Xero setup
+
+1. https://developer.xero.com → My Apps → New app (Web app).
+2. Redirect URI: `https://ins.jahdev.com/api/integrations/xero/callback`.
+3. Put client id/secret in `.env`, restart, then Settings → Integrations →
+   **Connect Xero** (admin only).
+4. "Sync now" pushes open agency-bill invoices (ACCREC) and pulls statuses +
+   online-payment ("Pay now") links. Tokens are AES-256-GCM encrypted at rest
+   (key derived from `AUTH_SECRET`).
+5. Online payments are ONLY via the Xero Pay-now link on each invoice.
+
+## Google Workspace setup (optional)
+
+1. GCP project → enable **Gmail API** and **Google Calendar API**.
+2. Create a service account + JSON key → save to
+   `C:/Users/bot/secrets/ins-workspace-sa.json`.
+3. Workspace Admin → Security → API controls → Domain-wide delegation →
+   authorize the SA's client ID for scopes:
+   `https://www.googleapis.com/auth/gmail.send`,
+   `https://www.googleapis.com/auth/calendar`.
+4. Settings → Integrations: set the impersonation subject and enable.
+
+Missing key/subject = features report "not configured"; nothing crashes.
+
+## Resend (email) activation
+
+1. Verify domain **ins.jahdev.com** in Resend (DNS on Cloudflare).
+2. Create a send-only API key.
+3. `.env`: `EMAIL_TRANSPORT=resend`, `RESEND_API_KEY=…`, restart.
+Until then every email is logged with `email (log-only transport)`.
+
+## Health checks
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3220/login         # expect 200
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3220/dashboard     # expect 307 → /login when logged out
+```
+
+## Troubleshooting
+
+- **Login loops / 401 behind tunnel** — confirm `APP_URL`/`NEXTAUTH_URL` are
+  `https://ins.jahdev.com` and `AUTH_TRUST_HOST=true`.
+- **Redirects land on localhost:3220** — some handler built a URL from
+  `req.url`; use `appBaseUrl()` / `appRedirect()` instead (grep `new URL(.*req.url)`).
+- **"DATABASE_URL is not set"** — `.env` missing or service started outside the
+  repo directory.
+- **Xero sync FAILED with TOKEN_EXPIRED** — refresh token lapsed (>60 days
+  idle); Settings → Integrations → Reconnect.
+- **Uploads 410 on download** — file removed from `uploads/`; the DB row
+  remains. Delete the document row or restore the file.
