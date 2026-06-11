@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, DetailItem } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid, Select } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { LOB_LABELS, QUOTE_STATUS_LABELS } from "@/lib/labels";
 import { fmtMoney, toNum } from "@/lib/money";
 import { fmtDate, fmtDateInput } from "@/lib/domain/dates";
@@ -51,9 +52,9 @@ export default async function QuoteRequestDetailPage({ params }: { params: Promi
             ) : null}
             {qr.status !== "BOUND" && qr.status !== "LOST" ? (
               <form action={markRequestLost.bind(null, qr.id)}>
-                <button type="submit" className="btn-danger">
+                <ConfirmButton className="btn-danger" message="Mark this quote request as lost?">
                   Mark lost
-                </button>
+                </ConfirmButton>
               </form>
             ) : null}
           </>

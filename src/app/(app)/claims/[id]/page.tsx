@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, DetailItem } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid, Select } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { CLAIM_STATUS_LABELS, LOB_LABELS, claimStatusTone } from "@/lib/labels";
 import { fmtMoneyCents, toNum } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
@@ -52,9 +53,18 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
           <div className="flex gap-2">
             {NEXT[claim.status].map((next) => (
               <form key={next} action={setClaimStatus.bind(null, claim.id, next)}>
-                <button type="submit" className={next === "DENIED" ? "btn-danger" : "btn"}>
-                  → {CLAIM_STATUS_LABELS[next]}
-                </button>
+                {next === "DENIED" || next === "CLOSED" ? (
+                  <ConfirmButton
+                    className={next === "DENIED" ? "btn-danger" : "btn"}
+                    message={`Move this claim to ${CLAIM_STATUS_LABELS[next]}?`}
+                  >
+                    → {CLAIM_STATUS_LABELS[next]}
+                  </ConfirmButton>
+                ) : (
+                  <button type="submit" className="btn">
+                    → {CLAIM_STATUS_LABELS[next]}
+                  </button>
+                )}
               </form>
             ))}
           </div>

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, DetailItem } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid, Select } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { ALL_LOBS, APPOINTMENT_LABELS, LOB_LABELS, POLICY_STATUS_LABELS, policyStatusTone } from "@/lib/labels";
 import { fmtMoney, fmtPct, toNum } from "@/lib/money";
 import { fmtDate, fmtDateInput } from "@/lib/domain/dates";
@@ -113,9 +114,7 @@ export default async function CarrierDetailPage({ params }: { params: Promise<{ 
                     <span className="ml-2 text-xs text-slate-500">{[c.role, c.email, c.phone].filter(Boolean).join(" · ")}</span>
                   </div>
                   <form action={deleteCarrierContact.bind(null, carrier.id, c.id)}>
-                    <button className="btn btn-sm" type="submit">
-                      Remove
-                    </button>
+                    <ConfirmButton message={`Remove carrier contact "${c.name}"?`}>Remove</ConfirmButton>
                   </form>
                 </li>
               ))}
@@ -138,7 +137,8 @@ export default async function CarrierDetailPage({ params }: { params: Promise<{ 
         <div className="space-y-6">
           <div className="card-pad">
             <h2 className="section-title mb-3">Commission schedule (new % / renewal %)</h2>
-            <table className="table-base mb-4">
+            <div className="mb-4 overflow-x-auto">
+            <table className="table-base">
               <thead>
                 <tr>
                   <th>Line of business</th>
@@ -155,9 +155,9 @@ export default async function CarrierDetailPage({ params }: { params: Promise<{ 
                     <td className="text-right">{fmtPct(s.renewalPct)}</td>
                     <td className="text-right">
                       <form action={deleteSchedule.bind(null, carrier.id, s.id)}>
-                        <button className="btn btn-sm" type="submit">
+                        <ConfirmButton message={`Remove the ${LOB_LABELS[s.lineOfBusiness]} commission row?`}>
                           Remove
-                        </button>
+                        </ConfirmButton>
                       </form>
                     </td>
                   </tr>
@@ -171,6 +171,7 @@ export default async function CarrierDetailPage({ params }: { params: Promise<{ 
                 ) : null}
               </tbody>
             </table>
+            </div>
             <form action={upsertSchedule.bind(null, carrier.id)} className="flex flex-wrap items-end gap-2">
               <Field label="LOB">
                 <Select name="lineOfBusiness" options={ALL_LOBS.map((l) => ({ value: l, label: LOB_LABELS[l] }))} />
@@ -194,6 +195,7 @@ export default async function CarrierDetailPage({ params }: { params: Promise<{ 
                 All policies →
               </Link>
             </div>
+            <div className="overflow-x-auto">
             <table className="table-base">
               <thead>
                 <tr>
@@ -229,6 +231,7 @@ export default async function CarrierDetailPage({ params }: { params: Promise<{ 
                 ) : null}
               </tbody>
             </table>
+            </div>
           </div>
 
           <div className="card-pad">

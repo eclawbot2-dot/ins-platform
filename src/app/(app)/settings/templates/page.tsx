@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { Field, FormGrid } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtDate } from "@/lib/domain/dates";
 import { deleteEmailTemplate, saveEmailTemplate } from "../actions";
 
@@ -55,7 +56,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
                   <td className="text-right">
                     {isAdmin ? (
                       <form action={deleteEmailTemplate.bind(null, t.id)}>
-                        <button type="submit" className="btn btn-sm">Delete</button>
+                        <ConfirmButton message={`Delete template "${t.key}"?`}>Delete</ConfirmButton>
                       </form>
                     ) : null}
                   </td>

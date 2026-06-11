@@ -19,6 +19,35 @@ body {
   color: var(--text);
 }
 
+/* Guard against accidental horizontal overflow on small screens.
+   `clip` (not `hidden`) keeps position: sticky descendants working. */
+body {
+  overflow-x: clip;
+}
+
+/* ── Accessibility ────────────────────────────────────────────────── */
+/* Visible keyboard focus everywhere (inputs keep their ring styles). */
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ── Shared component classes ─────────────────────────────────────── */
 .card {
   @apply rounded-xl border border-slate-200 bg-white shadow-sm;

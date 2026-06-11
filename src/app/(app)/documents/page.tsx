@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid, Select } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtDate } from "@/lib/domain/dates";
 import { humanize } from "@/lib/labels";
 import { deleteDocument, uploadDocument } from "./actions";
@@ -104,9 +105,9 @@ export default async function DocumentsPage({
                 <td>{d.uploadedBy.name}</td>
                 <td className="text-right">
                   <form action={deleteDocument.bind(null, d.id)}>
-                    <button className="btn btn-sm" type="submit">
+                    <ConfirmButton message={`Delete "${d.fileName}"? The file is removed permanently.`}>
                       Delete
-                    </button>
+                    </ConfirmButton>
                   </form>
                 </td>
               </tr>

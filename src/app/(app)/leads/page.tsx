@@ -75,7 +75,18 @@ export default async function LeadsPage({
       <DataTable
         rows={leads}
         rowHref={(l) => `/leads/${l.id}`}
-        emptyMessage="No leads match."
+        emptyMessage={
+          q || statusFilter ? (
+            "No leads match your search."
+          ) : (
+            <span>
+              No leads yet.{" "}
+              <Link href="/leads/new" className="font-medium text-indigo-700 hover:underline">
+                Add a lead →
+              </Link>
+            </span>
+          )
+        }
         columns={[
           { key: "name", header: "Name", render: (l) => `${l.firstName} ${l.lastName}` },
           {
@@ -92,10 +103,15 @@ export default async function LeadsPage({
             header: "Status",
             render: (l) => <Badge tone={leadStatusTone(l.status)}>{LEAD_STATUS_LABELS[l.status]}</Badge>,
           },
-          { key: "lob", header: "Line", render: (l) => (l.lineOfBusiness ? LOB_LABELS[l.lineOfBusiness] : "—") },
-          { key: "source", header: "Source", render: (l) => l.source ?? "—" },
-          { key: "campaign", header: "Campaign", render: (l) => l.campaign?.name ?? "—" },
-          { key: "assigned", header: "Assigned", render: (l) => l.assignedTo?.name ?? "—" },
+          {
+            key: "lob",
+            header: "Line",
+            className: "hidden md:table-cell",
+            render: (l) => (l.lineOfBusiness ? LOB_LABELS[l.lineOfBusiness] : "—"),
+          },
+          { key: "source", header: "Source", className: "hidden md:table-cell", render: (l) => l.source ?? "—" },
+          { key: "campaign", header: "Campaign", className: "hidden lg:table-cell", render: (l) => l.campaign?.name ?? "—" },
+          { key: "assigned", header: "Assigned", className: "hidden lg:table-cell", render: (l) => l.assignedTo?.name ?? "—" },
           { key: "created", header: "Created", render: (l) => fmtDate(l.createdAt) },
         ]}
       />

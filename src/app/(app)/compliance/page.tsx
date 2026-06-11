@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid, Select } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtMoney, toNum } from "@/lib/money";
 import { fmtDate, daysUntil } from "@/lib/domain/dates";
 import { ceProgress, expirationSeverity, ALERT_WINDOW_DAYS } from "@/lib/domain/compliance";
@@ -99,7 +100,9 @@ export default async function CompliancePage() {
                   <div className="flex items-center gap-2">
                     {sevBadge(l.expiresAt)}
                     <form action={deleteLicense.bind(null, l.id)}>
-                      <button type="submit" className="btn btn-sm">Remove</button>
+                      <ConfirmButton message={`Remove ${l.user.name}'s ${l.state} license and its CE credits?`}>
+                        Remove
+                      </ConfirmButton>
                     </form>
                   </div>
                 </div>
@@ -280,7 +283,7 @@ export default async function CompliancePage() {
                   <td>{sevBadge(e.expirationDate)}</td>
                   <td className="text-right">
                     <form action={deleteEoPolicy.bind(null, e.id)}>
-                      <button type="submit" className="btn btn-sm">Remove</button>
+                      <ConfirmButton message={`Remove E&O policy ${e.policyNumber}?`}>Remove</ConfirmButton>
                     </form>
                   </td>
                 </tr>

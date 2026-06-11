@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, DetailItem } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid, Select } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import {
   BILLING_LABELS,
   CLAIM_STATUS_LABELS,
@@ -264,9 +265,12 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
                     ]}
                   />
                 </Field>
-                <button type="submit" className="btn-danger w-full justify-center">
+                <ConfirmButton
+                  className="btn-danger w-full justify-center"
+                  message="Cancel this policy? Return premium is computed from the date and method above."
+                >
                   Cancel policy
-                </button>
+                </ConfirmButton>
               </form>
             </div>
           ) : null}

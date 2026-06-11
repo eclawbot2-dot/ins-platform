@@ -22,9 +22,15 @@ export function SearchBar({
 }) {
   return (
     <form action={action} method="get" className="flex flex-wrap items-center gap-2">
-      <div className="relative">
+      <div className="relative w-full sm:w-64">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <input name="q" defaultValue={q ?? ""} placeholder={placeholder} className="input w-64 pl-8" />
+        <input
+          name="q"
+          defaultValue={q ?? ""}
+          placeholder={placeholder}
+          aria-label="Search"
+          className="input pl-8"
+        />
       </div>
       {filters
         ? Object.entries(filters).map(([k, v]) =>

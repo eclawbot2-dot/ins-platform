@@ -77,10 +77,26 @@ export default async function ClientsPage({
       <DataTable
         rows={clients}
         rowHref={(c) => `/clients/${c.id}`}
-        emptyMessage="No clients match."
+        emptyMessage={
+          q || statusFilter ? (
+            "No clients match your search."
+          ) : (
+            <span>
+              No clients yet.{" "}
+              <Link href="/clients/new" className="font-medium text-indigo-700 hover:underline">
+                Add your first client →
+              </Link>
+            </span>
+          )
+        }
         columns={[
           { key: "name", header: "Name" },
-          { key: "type", header: "Type", render: (c) => (c.type === "BUSINESS" ? "Business" : "Individual") },
+          {
+            key: "type",
+            header: "Type",
+            className: "hidden lg:table-cell",
+            render: (c) => (c.type === "BUSINESS" ? "Business" : "Individual"),
+          },
           {
             key: "status",
             header: "Status",
@@ -90,10 +106,15 @@ export default async function ClientsPage({
               </Badge>
             ),
           },
-          { key: "email", header: "Email", render: (c) => c.email ?? "—" },
+          { key: "email", header: "Email", className: "hidden md:table-cell", render: (c) => c.email ?? "—" },
           { key: "phone", header: "Phone", render: (c) => c.phone ?? "—" },
-          { key: "city", header: "City", render: (c) => (c.city ? `${c.city}, ${c.state ?? ""}` : "—") },
-          { key: "producer", header: "Producer", render: (c) => c.producer?.name ?? "—" },
+          {
+            key: "city",
+            header: "City",
+            className: "hidden lg:table-cell",
+            render: (c) => (c.city ? `${c.city}, ${c.state ?? ""}` : "—"),
+          },
+          { key: "producer", header: "Producer", className: "hidden md:table-cell", render: (c) => c.producer?.name ?? "—" },
           {
             key: "premium",
             header: "Active premium",

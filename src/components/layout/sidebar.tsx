@@ -1,75 +1,6 @@
-import Link from "next/link";
-import {
-  LayoutDashboard,
-  Users,
-  UserPlus,
-  GitBranch,
-  ListChecks,
-  FileText,
-  Building2,
-  Calculator,
-  RefreshCw,
-  ShieldAlert,
-  Wallet,
-  FileCheck2,
-  FolderOpen,
-  ShieldCheck,
-  UsersRound,
-  Megaphone,
-  Receipt,
-  BarChart3,
-  Settings,
-  Shield,
-} from "lucide-react";
+import { Shield } from "lucide-react";
+import { NavLinks } from "./nav-links";
 import { SignOutButton } from "./sign-out-button";
-
-type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
-type NavSection = { title: string; items: NavItem[] };
-
-const SECTIONS: NavSection[] = [
-  {
-    title: "Overview",
-    items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/tasks", label: "Tasks", icon: ListChecks },
-    ],
-  },
-  {
-    title: "CRM",
-    items: [
-      { href: "/clients", label: "Clients", icon: Users },
-      { href: "/leads", label: "Leads", icon: UserPlus },
-      { href: "/opportunities", label: "Pipeline", icon: GitBranch },
-    ],
-  },
-  {
-    title: "Operations",
-    items: [
-      { href: "/policies", label: "Policies", icon: FileText },
-      { href: "/quotes", label: "Quoting", icon: Calculator },
-      { href: "/renewals", label: "Renewals", icon: RefreshCw },
-      { href: "/claims", label: "Claims", icon: ShieldAlert },
-      { href: "/certificates", label: "Certificates", icon: FileCheck2 },
-      { href: "/carriers", label: "Carriers", icon: Building2 },
-      { href: "/documents", label: "Documents", icon: FolderOpen },
-    ],
-  },
-  {
-    title: "Back office",
-    items: [
-      { href: "/commissions", label: "Commissions", icon: Wallet },
-      { href: "/accounting", label: "Accounting", icon: Receipt },
-      { href: "/compliance", label: "Compliance", icon: ShieldCheck },
-      { href: "/team", label: "Team", icon: UsersRound },
-      { href: "/marketing", label: "Marketing", icon: Megaphone },
-      { href: "/reports", label: "Reports", icon: BarChart3 },
-    ],
-  },
-  {
-    title: "Admin",
-    items: [{ href: "/settings", label: "Settings", icon: Settings }],
-  },
-];
 
 export function Sidebar({ userName, userRole }: { userName: string; userRole: string }) {
   return (
@@ -82,26 +13,7 @@ export function Sidebar({ userName, userRole }: { userName: string; userRole: st
         </div>
       </div>
       <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-3 py-4">
-        {SECTIONS.map((section) => (
-          <div key={section.title} className="mb-4">
-            <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-              {section.title}
-            </div>
-            <ul className="space-y-0.5">
-              {section.items.map((item) => (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
-                  >
-                    <item.icon className="h-4 w-4 text-slate-400" />
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        <NavLinks />
       </nav>
       <div className="border-t border-white/10 px-4 py-3">
         <div className="truncate text-sm font-medium text-white">{userName}</div>

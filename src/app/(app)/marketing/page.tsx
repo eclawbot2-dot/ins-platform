@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid, Select } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtMoney, fmtMoneyCents } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
 import { humanize } from "@/lib/labels";
@@ -112,7 +113,7 @@ export default async function MarketingPage() {
                     <td className="text-right">{perf?.premiumPerDollar != null ? `${perf.premiumPerDollar}x` : "—"}</td>
                     <td className="text-right">
                       <form action={deleteCampaign.bind(null, c.id)}>
-                        <button type="submit" className="btn btn-sm">Delete</button>
+                        <ConfirmButton message={`Delete campaign "${c.name}"?`}>Delete</ConfirmButton>
                       </form>
                     </td>
                   </tr>
@@ -197,7 +198,7 @@ export default async function MarketingPage() {
                   <td className="text-xs text-slate-500">{r.notes ?? "—"}</td>
                   <td className="text-right">
                     <form action={deleteReferral.bind(null, r.id)}>
-                      <button type="submit" className="btn btn-sm">Remove</button>
+                      <ConfirmButton message="Remove this referral record?">Remove</ConfirmButton>
                     </form>
                   </td>
                 </tr>

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, DetailItem } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtMoneyCents, toNum } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
 import { openBalance } from "@/lib/domain/aging";
@@ -76,7 +77,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             ) : null}
             {isOpen ? (
               <form action={voidInvoice.bind(null, invoice.id)}>
-                <button type="submit" className="btn">Void</button>
+                <ConfirmButton className="btn" message="Void this invoice? It can no longer be collected.">
+                  Void
+                </ConfirmButton>
               </form>
             ) : null}
           </>

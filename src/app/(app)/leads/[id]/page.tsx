@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, DetailItem } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { FormGrid, Select } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { LEAD_STATUS_LABELS, LOB_LABELS, leadStatusTone } from "@/lib/labels";
 import { leadGrade } from "@/lib/domain/lead-scoring";
 import { fmtDate } from "@/lib/domain/dates";
@@ -61,9 +62,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             ) : null}
             {lead.status !== "LOST" && lead.status !== "CONVERTED" ? (
               <form action={setLeadStatus.bind(null, lead.id, "LOST")}>
-                <button type="submit" className="btn-danger">
+                <ConfirmButton className="btn-danger" message="Mark this lead as lost?">
                   Mark lost
-                </button>
+                </ConfirmButton>
               </form>
             ) : null}
           </>

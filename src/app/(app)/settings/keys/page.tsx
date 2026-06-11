@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Field } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtDate } from "@/lib/domain/dates";
 import { createLeadIntakeKey, deleteLeadIntakeKey, toggleLeadIntakeKey } from "../actions";
 
@@ -64,7 +65,9 @@ export default async function LeadIntakeKeysPage() {
                         <button type="submit" className="btn btn-sm">{k.active ? "Disable" : "Enable"}</button>
                       </form>
                       <form action={deleteLeadIntakeKey.bind(null, k.id)}>
-                        <button type="submit" className="btn btn-sm">Delete</button>
+                        <ConfirmButton message={`Delete key "${k.label}"? Any site still using it will stop submitting leads.`}>
+                          Delete
+                        </ConfirmButton>
                       </form>
                     </span>
                   ) : null}

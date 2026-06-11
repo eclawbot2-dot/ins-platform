@@ -88,18 +88,29 @@ export default async function PoliciesPage({
       <DataTable
         rows={policies}
         rowHref={(p) => `/policies/${p.id}`}
-        emptyMessage="No policies match."
+        emptyMessage={
+          q || statusFilter || lobFilter ? (
+            "No policies match your search."
+          ) : (
+            <span>
+              No policies yet.{" "}
+              <Link href="/policies/new" className="font-medium text-indigo-700 hover:underline">
+                Create the first policy →
+              </Link>
+            </span>
+          )
+        }
         columns={[
           { key: "policyNumber", header: "Policy #" },
           { key: "client", header: "Client", render: (p) => p.client.name },
-          { key: "lob", header: "Line", render: (p) => LOB_LABELS[p.lineOfBusiness] },
-          { key: "carrier", header: "Carrier", render: (p) => p.carrier.name },
+          { key: "lob", header: "Line", className: "hidden md:table-cell", render: (p) => LOB_LABELS[p.lineOfBusiness] },
+          { key: "carrier", header: "Carrier", className: "hidden md:table-cell", render: (p) => p.carrier.name },
           {
             key: "status",
             header: "Status",
             render: (p) => <Badge tone={policyStatusTone(p.status)}>{POLICY_STATUS_LABELS[p.status]}</Badge>,
           },
-          { key: "billing", header: "Billing", render: (p) => BILLING_LABELS[p.billingType] },
+          { key: "billing", header: "Billing", className: "hidden lg:table-cell", render: (p) => BILLING_LABELS[p.billingType] },
           {
             key: "term",
             header: "Term",
@@ -110,7 +121,7 @@ export default async function PoliciesPage({
             ),
           },
           { key: "premium", header: "Premium", className: "text-right", render: (p) => fmtMoney(p.premium) },
-          { key: "producer", header: "Producer", render: (p) => p.producer.name },
+          { key: "producer", header: "Producer", className: "hidden lg:table-cell", render: (p) => p.producer.name },
         ]}
       />
       <div className="mt-3">

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, DetailItem } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid, Select } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import {
   CLIENT_STATUS_LABELS,
   CLAIM_STATUS_LABELS,
@@ -106,9 +107,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                     </div>
                   </div>
                   <form action={deleteContact.bind(null, client.id, c.id)}>
-                    <button className="btn btn-sm" type="submit">
-                      Remove
-                    </button>
+                    <ConfirmButton message={`Remove contact "${c.name}"?`}>Remove</ConfirmButton>
                   </form>
                 </li>
               ))}

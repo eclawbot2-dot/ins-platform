@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, DetailItem } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid, Select } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtMoneyCents, toNum } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
 import { reconcileSummary } from "@/lib/domain/commissions";
@@ -122,9 +123,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
                 </td>
                 <td className="text-right">
                   <form action={deleteStatementLine.bind(null, statement.id, l.id)}>
-                    <button className="btn btn-sm" type="submit">
-                      Remove
-                    </button>
+                    <ConfirmButton message="Remove this statement line?">Remove</ConfirmButton>
                   </form>
                 </td>
               </tr>

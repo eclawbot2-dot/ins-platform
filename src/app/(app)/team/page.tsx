@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid, Select } from "@/components/ui/form";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtMoney, toNum } from "@/lib/money";
 import { fmtDate, startOfYear } from "@/lib/domain/dates";
 import { producerProduction } from "@/lib/reports/production";
@@ -127,9 +128,15 @@ export default async function TeamPage() {
                   <div className="flex items-end justify-end">
                     {u.id !== session.userId ? (
                       <form action={toggleUserActive.bind(null, u.id)}>
-                        <button type="submit" className="btn btn-sm">
-                          {u.active ? "Deactivate" : "Reactivate"}
-                        </button>
+                        {u.active ? (
+                          <ConfirmButton message={`Deactivate ${u.name}? They will no longer be able to sign in.`}>
+                            Deactivate
+                          </ConfirmButton>
+                        ) : (
+                          <button type="submit" className="btn btn-sm">
+                            Reactivate
+                          </button>
+                        )}
                       </form>
                     ) : (
                       <span className="text-xs text-slate-400">This is you</span>
