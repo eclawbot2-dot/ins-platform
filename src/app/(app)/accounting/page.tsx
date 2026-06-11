@@ -8,6 +8,7 @@ import { Field, FormGrid, Select } from "@/components/ui/form";
 import { fmtMoneyCents, toNum } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
 import { agingSummary, AGING_BUCKETS, AGING_LABELS, openBalance } from "@/lib/domain/aging";
+import { applySort, parseSortParams } from "@/lib/sort";
 import { isXeroConfigured } from "@/lib/integrations/xero/auth";
 import { createInvoice, runXeroSync } from "./actions";
 import type { InvoiceStatus, Prisma } from "@prisma/client";
@@ -26,9 +27,10 @@ const STATUS_TONE: Record<InvoiceStatus, "green" | "blue" | "amber" | "red" | "s
 export default async function AccountingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; sort?: string; dir?: string }>;
 }) {
-  const { status } = await searchParams;
+  const { status, sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["invoiceNumber", "client", "policy", "issue", "due", "amount", "balance", "status"]);
   const statusFilter =
     status && ["DRAFT", "SENT", "PARTIAL", "PAID", "VOID"].includes(status) ? (status as InvoiceStatus) : undefined;
   const where: Prisma.InvoiceWhereInput = statusFilter ? { status: statusFilter } : {};
@@ -98,26 +100,42 @@ export default async function AccountingPage({
       </div>
 
       <DataTable
-        rows={invoices}
+        rows={applySort(
+          invoices,
+          {
+            invoiceNumber: (i) => i.invoiceNumber,
+            client: (i) => i.client.name,
+            policy: (i) => i.policy?.policyNumber,
+            issue: (i) => i.issueDate,
+            due: (i) => i.dueDate,
+            amount: (i) => toNum(i.amount),
+            balance: (i) => (i.status === "VOID" ? 0 : openBalance({ amount: toNum(i.amount), paidAmount: toNum(i.paidAmount) })),
+            status: (i) => i.status,
+          },
+          sortState,
+        )}
         rowHref={(i) => `/accounting/${i.id}`}
+        sort={{ ...sortState, basePath: "/accounting", params: { status: statusFilter } }}
         emptyMessage="No invoices yet — create one below for an agency-bill policy."
         columns={[
-          { key: "invoiceNumber", header: "Invoice #" },
-          { key: "client", header: "Client", render: (i) => i.client.name },
-          { key: "policy", header: "Policy", render: (i) => i.policy?.policyNumber ?? "—" },
-          { key: "issue", header: "Issued", render: (i) => fmtDate(i.issueDate) },
-          { key: "due", header: "Due", render: (i) => fmtDate(i.dueDate) },
-          { key: "amount", header: "Amount", className: "text-right", render: (i) => fmtMoneyCents(i.amount) },
+          { key: "invoiceNumber", header: "Invoice #", sortable: true },
+          { key: "client", header: "Client", sortable: true, render: (i) => i.client.name },
+          { key: "policy", header: "Policy", sortable: true, render: (i) => i.policy?.policyNumber ?? "—" },
+          { key: "issue", header: "Issued", sortable: true, render: (i) => fmtDate(i.issueDate) },
+          { key: "due", header: "Due", sortable: true, render: (i) => fmtDate(i.dueDate) },
+          { key: "amount", header: "Amount", className: "text-right", sortable: true, render: (i) => fmtMoneyCents(i.amount) },
           {
             key: "balance",
             header: "Open balance",
             className: "text-right",
+            sortable: true,
             render: (i) =>
               i.status === "VOID" ? "—" : fmtMoneyCents(openBalance({ amount: toNum(i.amount), paidAmount: toNum(i.paidAmount) })),
           },
           {
             key: "status",
             header: "Status",
+            sortable: true,
             render: (i) => (
               <span className="flex items-center gap-1.5">
                 <Badge tone={STATUS_TONE[i.status]}>{i.status}</Badge>

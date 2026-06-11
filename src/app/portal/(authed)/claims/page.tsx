@@ -4,8 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { requirePortalSession } from "@/lib/portal";
 import { portalClaimWhere } from "@/lib/domain/portal-scope";
 import { Badge } from "@/components/ui/badge";
+import { ViewToggle } from "@/components/ui/view-toggle";
 import { CLAIM_STATUS_LABELS, claimStatusTone, LOB_LABELS } from "@/lib/labels";
 import { fmtDate } from "@/lib/domain/dates";
+import { PortalClaimsList, type PortalClaimRow } from "./claims-list";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,18 @@ export default async function PortalClaimsPage() {
     include: { policy: { select: { policyNumber: true, lineOfBusiness: true } } },
     orderBy: { reportedAt: "desc" },
   });
+
+  const listRows: PortalClaimRow[] = claims.map((c) => ({
+    id: c.id,
+    claimNumber: c.claimNumber,
+    description: c.description,
+    lobLabel: LOB_LABELS[c.policy.lineOfBusiness],
+    policyNumber: c.policy.policyNumber,
+    lossAt: c.dateOfLoss.getTime(),
+    lossFmt: fmtDate(c.dateOfLoss),
+    statusLabel: CLAIM_STATUS_LABELS[c.status],
+    statusTone: claimStatusTone(c.status),
+  }));
 
   return (
     <>
@@ -36,22 +50,28 @@ export default async function PortalClaimsPage() {
           your agency team will take it from there.
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3">
-          {claims.map((c) => (
-            <Link key={c.id} href={`/portal/claims/${c.id}`} className="card-pad transition hover:border-navy-300 hover:shadow">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <div className="font-medium text-navy-700">{c.claimNumber}</div>
-                  <div className="mt-0.5 text-sm text-slate-600">{c.description}</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {LOB_LABELS[c.policy.lineOfBusiness]} · {c.policy.policyNumber} · Loss {fmtDate(c.dateOfLoss)}
+        <ViewToggle
+          storageKey="portalClaimsViewMode"
+          list={<PortalClaimsList rows={listRows} />}
+          cards={
+            <div className="grid grid-cols-1 gap-3">
+              {claims.map((c) => (
+                <Link key={c.id} href={`/portal/claims/${c.id}`} className="card-pad transition hover:border-navy-300 hover:shadow">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium text-navy-700">{c.claimNumber}</div>
+                      <div className="mt-0.5 text-sm text-slate-600">{c.description}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {LOB_LABELS[c.policy.lineOfBusiness]} · {c.policy.policyNumber} · Loss {fmtDate(c.dateOfLoss)}
+                      </div>
+                    </div>
+                    <Badge tone={claimStatusTone(c.status)}>{CLAIM_STATUS_LABELS[c.status]}</Badge>
                   </div>
-                </div>
-                <Badge tone={claimStatusTone(c.status)}>{CLAIM_STATUS_LABELS[c.status]}</Badge>
-              </div>
-            </Link>
-          ))}
-        </div>
+                </Link>
+              ))}
+            </div>
+          }
+        />
       )}
     </>
   );

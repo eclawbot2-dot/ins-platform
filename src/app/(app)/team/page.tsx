@@ -9,6 +9,8 @@ import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtMoney, toNum } from "@/lib/money";
 import { fmtDate, startOfYear } from "@/lib/domain/dates";
 import { producerProduction } from "@/lib/reports/production";
+import { ViewToggle } from "@/components/ui/view-toggle";
+import { TeamListView, type TeamRow } from "./team-list";
 import { createUser, setUserPassword, toggleUserActive, updateUser } from "./actions";
 
 export const metadata = { title: "Team" };
@@ -40,6 +42,26 @@ export default async function TeamPage() {
   ]);
   const productionByUser = new Map(production.map((p) => [p.producerId, p]));
 
+  const listRows: TeamRow[] = users.map((u) => {
+    const prod = productionByUser.get(u.id);
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      role: u.role,
+      active: u.active,
+      policiesCount: u._count.producedPolicies,
+      clientsCount: u._count.producedClients,
+      ytdPremium: prod?.writtenPremium ?? 0,
+      ytdPremiumFmt: prod ? fmtMoney(prod.writtenPremium) : "$0",
+      ytdCommission: prod?.commission ?? 0,
+      ytdCommissionFmt: prod ? fmtMoney(prod.commission) : "$0",
+      lastLoginAt: u.lastLoginAt ? u.lastLoginAt.getTime() : null,
+      lastLoginFmt: u.lastLoginAt ? fmtDate(u.lastLoginAt) : "never",
+    };
+  });
+
   return (
     <>
       <PageHeader
@@ -52,7 +74,11 @@ export default async function TeamPage() {
         }
       />
 
-      <div className="space-y-4">
+      <ViewToggle
+        storageKey="teamViewMode"
+        list={<TeamListView rows={listRows} />}
+        cards={
+          <div className="space-y-4">
         {users.map((u) => {
           const prod = productionByUser.get(u.id);
           return (
@@ -149,7 +175,9 @@ export default async function TeamPage() {
             </div>
           );
         })}
-      </div>
+          </div>
+        }
+      />
 
       {isAdmin ? (
         <div className="card-pad mt-6 max-w-3xl">

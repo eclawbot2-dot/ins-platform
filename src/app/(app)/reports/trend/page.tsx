@@ -3,12 +3,26 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { premiumTrend } from "@/lib/reports/trend";
 import { fmtMoney, roundMoney } from "@/lib/money";
+import { ThSort } from "@/components/ui/data-table";
+import { applySort, parseSortParams } from "@/lib/sort";
 
 export const metadata = { title: "Premium trend" };
 export const dynamic = "force-dynamic";
 
-export default async function TrendReportPage() {
+export default async function TrendReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string; dir?: string }>;
+}) {
+  const { sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["month", "new", "renewal", "total"]);
+  const tableSort = { ...sortState, basePath: "/reports/trend" };
   const months = await premiumTrend(12);
+  const sortedMonths = applySort(
+    months,
+    { month: (m) => m.month, new: (m) => m.newPremium, renewal: (m) => m.renewalPremium, total: (m) => m.total },
+    sortState,
+  );
   const totalNew = roundMoney(months.reduce((acc, m) => acc + m.newPremium, 0));
   const totalRenewal = roundMoney(months.reduce((acc, m) => acc + m.renewalPremium, 0));
   const max = Math.max(1, ...months.map((m) => m.total));
@@ -35,15 +49,15 @@ export default async function TrendReportPage() {
         <table className="table-base">
           <thead>
             <tr>
-              <th>Month</th>
-              <th className="text-right">New business</th>
-              <th className="text-right">Renewal</th>
-              <th className="text-right">Total</th>
+              <ThSort k="month" label="Month" sort={tableSort} />
+              <ThSort k="new" label="New business" sort={tableSort} className="text-right" />
+              <ThSort k="renewal" label="Renewal" sort={tableSort} className="text-right" />
+              <ThSort k="total" label="Total" sort={tableSort} className="text-right" />
               <th className="w-1/3">Mix</th>
             </tr>
           </thead>
           <tbody>
-            {months.map((m) => (
+            {sortedMonths.map((m) => (
               <tr key={m.month}>
                 <td className="font-medium">{m.month}</td>
                 <td className="text-right text-emerald-700">{fmtMoney(m.newPremium)}</td>

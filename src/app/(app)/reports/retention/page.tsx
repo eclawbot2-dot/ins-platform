@@ -6,12 +6,34 @@ import { Badge } from "@/components/ui/badge";
 import { retentionReport } from "@/lib/reports/retention";
 import { fmtMoney } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
+import { ThSort } from "@/components/ui/data-table";
+import { applySort, parseSortParams } from "@/lib/sort";
 
 export const metadata = { title: "Retention" };
 export const dynamic = "force-dynamic";
 
-export default async function RetentionReportPage() {
+export default async function RetentionReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string; dir?: string }>;
+}) {
+  const { sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["policyNumber", "client", "lob", "carrier", "premium", "expired", "outcome"]);
+  const tableSort = { ...sortState, basePath: "/reports/retention" };
   const report = await retentionReport(365);
+  const sortedRows = applySort(
+    report.rows,
+    {
+      policyNumber: (r) => r.policyNumber,
+      client: (r) => r.clientName,
+      lob: (r) => r.lineOfBusiness,
+      carrier: (r) => r.carrierName,
+      premium: (r) => r.premium,
+      expired: (r) => r.expirationDate,
+      outcome: (r) => r.outcome,
+    },
+    sortState,
+  );
 
   return (
     <>
@@ -41,24 +63,24 @@ export default async function RetentionReportPage() {
         <table className="table-base">
           <thead>
             <tr>
-              <th>Policy #</th>
-              <th>Client</th>
-              <th>LOB</th>
-              <th>Carrier</th>
-              <th className="text-right">Premium</th>
-              <th>Expired</th>
-              <th>Outcome</th>
+              <ThSort k="policyNumber" label="Policy #" sort={tableSort} />
+              <ThSort k="client" label="Client" sort={tableSort} />
+              <ThSort k="lob" label="LOB" sort={tableSort} />
+              <ThSort k="carrier" label="Carrier" sort={tableSort} />
+              <ThSort k="premium" label="Premium" sort={tableSort} className="text-right" />
+              <ThSort k="expired" label="Expired" sort={tableSort} />
+              <ThSort k="outcome" label="Outcome" sort={tableSort} />
             </tr>
           </thead>
           <tbody>
-            {report.rows.length === 0 ? (
+            {sortedRows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="py-8 text-center text-sm text-slate-400">
                   No expired terms in the window yet.
                 </td>
               </tr>
             ) : (
-              report.rows.map((r) => (
+              sortedRows.map((r) => (
                 <tr key={r.policyId}>
                   <td>
                     <Link href={`/policies/${r.policyId}`} className="font-medium text-navy-700 hover:underline">

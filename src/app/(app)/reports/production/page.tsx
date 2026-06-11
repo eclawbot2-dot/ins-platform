@@ -5,6 +5,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { producerProduction } from "@/lib/reports/production";
 import { fmtMoney, roundMoney } from "@/lib/money";
 import { startOfYear } from "@/lib/domain/dates";
+import { applySort, parseSortParams } from "@/lib/sort";
 
 export const metadata = { title: "Producer production" };
 export const dynamic = "force-dynamic";
@@ -12,9 +13,10 @@ export const dynamic = "force-dynamic";
 export default async function ProductionReportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; sort?: string; dir?: string }>;
 }) {
-  const { from, to } = await searchParams;
+  const { from, to, sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["producerName", "policyCount", "newPolicyCount", "writtenPremium", "commission"]);
   const fromDate = from ? new Date(`${from}T00:00:00Z`) : startOfYear(new Date());
   const toDate = to ? new Date(`${to}T23:59:59Z`) : undefined;
   const rows = await producerProduction({ from: fromDate, to: toDate });
@@ -57,15 +59,26 @@ export default async function ProductionReportPage({
       </div>
 
       <DataTable
-        rows={rows}
+        rows={applySort(
+          rows,
+          {
+            producerName: (r) => r.producerName,
+            policyCount: (r) => r.policyCount,
+            newPolicyCount: (r) => r.newPolicyCount,
+            writtenPremium: (r) => r.writtenPremium,
+            commission: (r) => r.commission,
+          },
+          sortState,
+        )}
         rowKey={(r) => r.producerId}
+        sort={{ ...sortState, basePath: "/reports/production", params: { from, to } }}
         emptyMessage="No production in this period."
         columns={[
-          { key: "producerName", header: "Producer" },
-          { key: "policyCount", header: "Policies" },
-          { key: "newPolicyCount", header: "New business" },
-          { key: "writtenPremium", header: "Written premium", className: "text-right", render: (r) => fmtMoney(r.writtenPremium) },
-          { key: "commission", header: "Commission", className: "text-right", render: (r) => fmtMoney(r.commission) },
+          { key: "producerName", header: "Producer", sortable: true },
+          { key: "policyCount", header: "Policies", sortable: true },
+          { key: "newPolicyCount", header: "New business", sortable: true },
+          { key: "writtenPremium", header: "Written premium", className: "text-right", sortable: true, render: (r) => fmtMoney(r.writtenPremium) },
+          { key: "commission", header: "Commission", className: "text-right", sortable: true, render: (r) => fmtMoney(r.commission) },
         ]}
       />
     </>

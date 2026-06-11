@@ -6,6 +6,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { LOB_LABELS } from "@/lib/labels";
 import { fmtDate } from "@/lib/domain/dates";
+import { applySort, parseSortParams } from "@/lib/sort";
 import type { QuoteRequestStatus } from "@prisma/client";
 
 export const metadata = { title: "Quoting" };
@@ -22,9 +23,10 @@ const STATUS_TONE: Record<QuoteRequestStatus, "blue" | "violet" | "amber" | "gre
 export default async function QuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; sort?: string; dir?: string }>;
 }) {
-  const { status } = await searchParams;
+  const { status, sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["for", "lob", "status", "quotes", "effective", "owner", "created"]);
   const statuses: QuoteRequestStatus[] = ["OPEN", "QUOTED", "PRESENTED", "BOUND", "LOST"];
   const statusFilter = statuses.includes(status as QuoteRequestStatus) ? (status as QuoteRequestStatus) : undefined;
 
@@ -39,6 +41,21 @@ export default async function QuotesPage({
       quotes: { select: { id: true } },
     },
   });
+
+  // Filter (where) → sort (copy) → render.
+  const sorted = applySort(
+    requests,
+    {
+      for: (r) => r.client?.name ?? (r.lead ? `${r.lead.firstName} ${r.lead.lastName}` : null),
+      lob: (r) => LOB_LABELS[r.lineOfBusiness],
+      status: (r) => r.status,
+      quotes: (r) => r.quotes.length,
+      effective: (r) => r.effectiveDate,
+      owner: (r) => r.owner.name,
+      created: (r) => r.createdAt,
+    },
+    sortState,
+  );
 
   return (
     <>
@@ -62,21 +79,23 @@ export default async function QuotesPage({
         ))}
       </div>
       <DataTable
-        rows={requests}
+        rows={sorted}
         rowHref={(r) => `/quotes/${r.id}`}
+        sort={{ ...sortState, basePath: "/quotes", params: { status: statusFilter } }}
         emptyMessage="No quote requests."
         columns={[
           {
             key: "for",
             header: "For",
+            sortable: true,
             render: (r) => r.client?.name ?? (r.lead ? `${r.lead.firstName} ${r.lead.lastName} (lead)` : "—"),
           },
-          { key: "lob", header: "Line", render: (r) => LOB_LABELS[r.lineOfBusiness] },
-          { key: "status", header: "Status", render: (r) => <Badge tone={STATUS_TONE[r.status]}>{r.status}</Badge> },
-          { key: "quotes", header: "Quotes", render: (r) => r.quotes.length },
-          { key: "effective", header: "Target effective", render: (r) => (r.effectiveDate ? fmtDate(r.effectiveDate) : "—") },
-          { key: "owner", header: "Owner", render: (r) => r.owner.name },
-          { key: "created", header: "Created", render: (r) => fmtDate(r.createdAt) },
+          { key: "lob", header: "Line", sortable: true, render: (r) => LOB_LABELS[r.lineOfBusiness] },
+          { key: "status", header: "Status", sortable: true, render: (r) => <Badge tone={STATUS_TONE[r.status]}>{r.status}</Badge> },
+          { key: "quotes", header: "Quotes", sortable: true, render: (r) => r.quotes.length },
+          { key: "effective", header: "Target effective", sortable: true, render: (r) => (r.effectiveDate ? fmtDate(r.effectiveDate) : "—") },
+          { key: "owner", header: "Owner", sortable: true, render: (r) => r.owner.name },
+          { key: "created", header: "Created", sortable: true, render: (r) => fmtDate(r.createdAt) },
         ]}
       />
     </>

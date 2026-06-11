@@ -8,6 +8,8 @@ import { Field, FormGrid, Select } from "@/components/ui/form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtMoneyCents, toNum } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
+import { ThSort } from "@/components/ui/data-table";
+import { applySort, parseSortParams } from "@/lib/sort";
 import { reconcileSummary } from "@/lib/domain/commissions";
 import {
   addStatementLine,
@@ -19,8 +21,16 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function StatementDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StatementDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ sort?: string; dir?: string }>;
+}) {
   const { id } = await params;
+  const { sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["policyNumber", "insured", "type", "premium", "commission", "match", "variance"]);
   const statement = await prisma.commissionStatement.findUnique({
     where: { id },
     include: {
@@ -37,6 +47,20 @@ export default async function StatementDetailPage({ params }: { params: Promise<
     statement.lines.map((l) => ({ matchStatus: l.matchStatus, varianceAmount: l.varianceAmount ? toNum(l.varianceAmount) : null })),
   );
   const linesTotal = statement.lines.reduce((acc, l) => acc + toNum(l.commissionAmount), 0);
+  const sortedLines = applySort(
+    statement.lines,
+    {
+      policyNumber: (l) => l.policyNumber,
+      insured: (l) => l.insuredName,
+      type: (l) => l.transactionType,
+      premium: (l) => (l.premium != null ? toNum(l.premium) : null),
+      commission: (l) => toNum(l.commissionAmount),
+      match: (l) => l.matchStatus,
+      variance: (l) => (l.varianceAmount != null ? toNum(l.varianceAmount) : null),
+    },
+    sortState,
+  );
+  const tableSort = { ...sortState, basePath: `/commissions/${statement.id}` };
 
   return (
     <>
@@ -81,18 +105,18 @@ export default async function StatementDetailPage({ params }: { params: Promise<
         <table className="table-base">
           <thead>
             <tr>
-              <th>Policy #</th>
-              <th>Insured</th>
-              <th>Type</th>
-              <th className="text-right">Premium</th>
-              <th className="text-right">Commission</th>
-              <th>Match</th>
-              <th className="text-right">Variance</th>
+              <ThSort k="policyNumber" label="Policy #" sort={tableSort} />
+              <ThSort k="insured" label="Insured" sort={tableSort} />
+              <ThSort k="type" label="Type" sort={tableSort} />
+              <ThSort k="premium" label="Premium" sort={tableSort} className="text-right" />
+              <ThSort k="commission" label="Commission" sort={tableSort} className="text-right" />
+              <ThSort k="match" label="Match" sort={tableSort} />
+              <ThSort k="variance" label="Variance" sort={tableSort} className="text-right" />
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {statement.lines.map((l) => (
+            {sortedLines.map((l) => (
               <tr key={l.id} className={l.matchStatus === "VARIANCE" ? "bg-amber-50/60" : l.matchStatus === "UNMATCHED" ? "bg-red-50/40" : ""}>
                 <td>
                   {l.policy ? (

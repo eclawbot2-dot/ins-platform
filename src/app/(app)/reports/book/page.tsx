@@ -5,6 +5,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { StatCard } from "@/components/ui/stat-card";
 import { bookOfBusiness, type BookGroupBy } from "@/lib/reports/book";
 import { fmtMoney, fmtPct } from "@/lib/money";
+import { applySort, parseSortParams } from "@/lib/sort";
 
 export const metadata = { title: "Book of business" };
 export const dynamic = "force-dynamic";
@@ -15,9 +16,14 @@ const GROUPS: Array<{ key: BookGroupBy; label: string }> = [
   { key: "producer", label: "By producer" },
 ];
 
-export default async function BookReportPage({ searchParams }: { searchParams: Promise<{ by?: string }> }) {
-  const { by: byRaw } = await searchParams;
+export default async function BookReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ by?: string; sort?: string; dir?: string }>;
+}) {
+  const { by: byRaw, sort, dir } = await searchParams;
   const by: BookGroupBy = byRaw === "lob" || byRaw === "producer" ? byRaw : "carrier";
+  const sortState = parseSortParams(sort, dir, ["group", "policyCount", "premium", "commission", "sharePct"]);
   const report = await bookOfBusiness(by);
 
   return (
@@ -47,15 +53,26 @@ export default async function BookReportPage({ searchParams }: { searchParams: P
       </div>
 
       <DataTable
-        rows={report.rows}
+        rows={applySort(
+          report.rows,
+          {
+            group: (r) => r.group,
+            policyCount: (r) => r.policyCount,
+            premium: (r) => r.premium,
+            commission: (r) => r.commission,
+            sharePct: (r) => r.sharePct,
+          },
+          sortState,
+        )}
         rowKey={(r) => r.group}
+        sort={{ ...sortState, basePath: "/reports/book", params: { by } }}
         emptyMessage="No active policies in the book."
         columns={[
-          { key: "group", header: GROUPS.find((g) => g.key === by)!.label.replace("By ", "") },
-          { key: "policyCount", header: "Policies" },
-          { key: "premium", header: "Premium", className: "text-right", render: (r) => fmtMoney(r.premium) },
-          { key: "commission", header: "Expected commission", className: "text-right", render: (r) => fmtMoney(r.commission) },
-          { key: "sharePct", header: "Share of book", className: "text-right", render: (r) => fmtPct(r.sharePct) },
+          { key: "group", header: GROUPS.find((g) => g.key === by)!.label.replace("By ", ""), sortable: true },
+          { key: "policyCount", header: "Policies", sortable: true },
+          { key: "premium", header: "Premium", className: "text-right", sortable: true, render: (r) => fmtMoney(r.premium) },
+          { key: "commission", header: "Expected commission", className: "text-right", sortable: true, render: (r) => fmtMoney(r.commission) },
+          { key: "sharePct", header: "Share of book", className: "text-right", sortable: true, render: (r) => fmtPct(r.sharePct) },
         ]}
       />
     </>

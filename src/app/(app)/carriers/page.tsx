@@ -7,6 +7,7 @@ import { Field, FormGrid, Select } from "@/components/ui/form";
 import { APPOINTMENT_LABELS } from "@/lib/labels";
 import { fmtMoney, toNum } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
+import { applySort, parseSortParams } from "@/lib/sort";
 import { createCarrier } from "./actions";
 import type { Prisma } from "@prisma/client";
 
@@ -16,9 +17,10 @@ export const dynamic = "force-dynamic";
 export default async function CarriersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; sort?: string; dir?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["name", "naic", "rating", "appointment", "expires", "mga", "schedules", "book"]);
   const where: Prisma.CarrierWhereInput = q ? { name: { contains: q, mode: "insensitive" } } : {};
 
   const carriers = await prisma.carrier.findMany({
@@ -37,16 +39,31 @@ export default async function CarriersPage({
         <SearchBar action="/carriers" q={q} placeholder="Search carriers…" />
       </div>
       <DataTable
-        rows={carriers}
+        rows={applySort(
+          carriers,
+          {
+            name: (c) => c.name,
+            naic: (c) => c.naicCode,
+            rating: (c) => c.amBestRating,
+            appointment: (c) => APPOINTMENT_LABELS[c.appointmentStatus],
+            expires: (c) => c.appointmentExpiresAt,
+            mga: (c) => c.isMga,
+            schedules: (c) => c.schedules.length,
+            book: (c) => c.policies.reduce((acc, p) => acc + toNum(p.premium), 0),
+          },
+          sortState,
+        )}
         rowHref={(c) => `/carriers/${c.id}`}
+        sort={{ ...sortState, basePath: "/carriers", params: { q } }}
         emptyMessage="No carriers."
         columns={[
-          { key: "name", header: "Carrier" },
-          { key: "naic", header: "NAIC", render: (c) => c.naicCode ?? "—" },
-          { key: "rating", header: "AM Best", render: (c) => c.amBestRating ?? "—" },
+          { key: "name", header: "Carrier", sortable: true },
+          { key: "naic", header: "NAIC", sortable: true, render: (c) => c.naicCode ?? "—" },
+          { key: "rating", header: "AM Best", sortable: true, render: (c) => c.amBestRating ?? "—" },
           {
             key: "appointment",
             header: "Appointment",
+            sortable: true,
             render: (c) => (
               <Badge tone={c.appointmentStatus === "APPOINTED" ? "green" : c.appointmentStatus === "PENDING" ? "amber" : "slate"}>
                 {APPOINTMENT_LABELS[c.appointmentStatus]}
@@ -56,14 +73,16 @@ export default async function CarriersPage({
           {
             key: "expires",
             header: "Appt expires",
+            sortable: true,
             render: (c) => (c.appointmentExpiresAt ? fmtDate(c.appointmentExpiresAt) : "—"),
           },
-          { key: "mga", header: "Type", render: (c) => (c.isMga ? "MGA" : "Carrier") },
-          { key: "schedules", header: "Schedules", render: (c) => `${c.schedules.length} LOBs` },
+          { key: "mga", header: "Type", sortable: true, render: (c) => (c.isMga ? "MGA" : "Carrier") },
+          { key: "schedules", header: "Schedules", sortable: true, render: (c) => `${c.schedules.length} LOBs` },
           {
             key: "book",
             header: "Active book",
             className: "text-right",
+            sortable: true,
             render: (c) => fmtMoney(c.policies.reduce((acc, p) => acc + toNum(p.premium), 0)),
           },
         ]}

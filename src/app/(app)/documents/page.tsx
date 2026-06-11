@@ -7,6 +7,8 @@ import { Field, FormGrid, Select } from "@/components/ui/form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtDate } from "@/lib/domain/dates";
 import { humanize } from "@/lib/labels";
+import { ThSort } from "@/components/ui/data-table";
+import { applySort, parseSortParams } from "@/lib/sort";
 import { deleteDocument, toggleDocumentVisibility, uploadDocument } from "./actions";
 import type { Prisma } from "@prisma/client";
 
@@ -22,9 +24,10 @@ function fmtBytes(n: number): string {
 export default async function DocumentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ clientId?: string; policyId?: string; claimId?: string }>;
+  searchParams: Promise<{ clientId?: string; policyId?: string; claimId?: string; sort?: string; dir?: string }>;
 }) {
-  const { clientId, policyId, claimId } = await searchParams;
+  const { clientId, policyId, claimId, sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["file", "type", "linked", "portal", "size", "uploaded", "by"]);
   const where: Prisma.DocumentWhereInput = {
     ...(clientId ? { clientId } : {}),
     ...(policyId ? { policyId } : {}),
@@ -48,6 +51,21 @@ export default async function DocumentsPage({
     prisma.claim.findMany({ select: { id: true, claimNumber: true }, orderBy: { claimNumber: "asc" } }),
   ]);
 
+  const sortedDocs = applySort(
+    docs,
+    {
+      file: (d) => d.fileName,
+      type: (d) => humanize(d.docType),
+      linked: (d) => d.client?.name ?? d.policy?.policyNumber ?? d.claim?.claimNumber,
+      portal: (d) => d.visibleToClient,
+      size: (d) => d.sizeBytes,
+      uploaded: (d) => d.createdAt,
+      by: (d) => d.uploadedBy.name,
+    },
+    sortState,
+  );
+  const tableSort = { ...sortState, basePath: "/documents", params: { clientId, policyId, claimId } };
+
   return (
     <>
       <PageHeader title="Documents" description="Files attached to clients, policies, and claims. Stored locally under uploads/." />
@@ -56,18 +74,18 @@ export default async function DocumentsPage({
         <table className="table-base">
           <thead>
             <tr>
-              <th>File</th>
-              <th>Type</th>
-              <th>Linked to</th>
-              <th>Portal</th>
-              <th>Size</th>
-              <th>Uploaded</th>
-              <th>By</th>
+              <ThSort k="file" label="File" sort={tableSort} />
+              <ThSort k="type" label="Type" sort={tableSort} />
+              <ThSort k="linked" label="Linked to" sort={tableSort} />
+              <ThSort k="portal" label="Portal" sort={tableSort} />
+              <ThSort k="size" label="Size" sort={tableSort} />
+              <ThSort k="uploaded" label="Uploaded" sort={tableSort} />
+              <ThSort k="by" label="By" sort={tableSort} />
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {docs.map((d) => (
+            {sortedDocs.map((d) => (
               <tr key={d.id}>
                 <td>
                   <a href={`/api/documents/${d.id}/download`} className="font-medium text-navy-700 hover:underline">
@@ -124,7 +142,7 @@ export default async function DocumentsPage({
                 </td>
               </tr>
             ))}
-            {docs.length === 0 ? (
+            {sortedDocs.length === 0 ? (
               <tr>
                 <td colSpan={8} className="py-8 text-center text-slate-400">
                   No documents{clientId || policyId || claimId ? " for this filter" : ""}.

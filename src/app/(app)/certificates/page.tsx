@@ -5,17 +5,29 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { SearchBar, Pagination, PAGE_SIZE, parsePage } from "@/components/ui/list-controls";
 import { fmtDate } from "@/lib/domain/dates";
+import { parseSortParams, type SortDirection } from "@/lib/sort";
 import type { Prisma } from "@prisma/client";
 
 export const metadata = { title: "Certificates" };
 export const dynamic = "force-dynamic";
 
+// Server-side sort: orders the FULL dataset before pagination.
+const SORTS: Record<string, (d: SortDirection) => Prisma.CertificateOrderByWithRelationInput> = {
+  certNumber: (d) => ({ certNumber: d }),
+  client: (d) => ({ client: { name: d } }),
+  holder: (d) => ({ holder: { name: d } }),
+  coverages: (d) => ({ coverages: { _count: d } }),
+  issued: (d) => ({ issuedAt: d }),
+  by: (d) => ({ issuedBy: { name: d } }),
+};
+
 export default async function CertificatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; sort?: string; dir?: string }>;
 }) {
-  const { q, page: pageRaw } = await searchParams;
+  const { q, page: pageRaw, sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, Object.keys(SORTS));
   const page = parsePage(pageRaw);
 
   const where: Prisma.CertificateWhereInput = q
@@ -31,7 +43,7 @@ export default async function CertificatesPage({
   const [certs, total] = await Promise.all([
     prisma.certificate.findMany({
       where,
-      orderBy: { issuedAt: "desc" },
+      orderBy: sortState.sortKey ? SORTS[sortState.sortKey](sortState.sortDir) : { issuedAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: {
@@ -66,19 +78,20 @@ export default async function CertificatesPage({
       <DataTable
         rows={certs}
         rowHref={(c) => `/certificates/${c.id}`}
+        sort={{ ...sortState, basePath: "/certificates", params: { q } }}
         emptyMessage="No certificates issued."
         columns={[
-          { key: "certNumber", header: "Cert #" },
-          { key: "client", header: "Insured", render: (c) => c.client.name },
-          { key: "holder", header: "Certificate holder", render: (c) => c.holder.name },
-          { key: "coverages", header: "Coverages", render: (c) => c.coverages.length },
+          { key: "certNumber", header: "Cert #", sortable: true },
+          { key: "client", header: "Insured", sortable: true, render: (c) => c.client.name },
+          { key: "holder", header: "Certificate holder", sortable: true, render: (c) => c.holder.name },
+          { key: "coverages", header: "Coverages", sortable: true, render: (c) => c.coverages.length },
           { key: "flags", header: "Flags", render: (c) => [c.additionalInsured ? "AI" : null, c.waiverOfSubrogation ? "WOS" : null].filter(Boolean).join(", ") || "—" },
-          { key: "issued", header: "Issued", render: (c) => fmtDate(c.issuedAt) },
-          { key: "by", header: "Issued by", render: (c) => c.issuedBy.name },
+          { key: "issued", header: "Issued", sortable: true, render: (c) => fmtDate(c.issuedAt) },
+          { key: "by", header: "Issued by", sortable: true, render: (c) => c.issuedBy.name },
         ]}
       />
       <div className="mt-3">
-        <Pagination basePath="/certificates" page={page} total={total} params={{ q }} />
+        <Pagination basePath="/certificates" page={page} total={total} params={{ q, sort, dir }} />
       </div>
     </>
   );

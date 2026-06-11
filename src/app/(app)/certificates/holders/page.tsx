@@ -2,12 +2,19 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { Field, FormGrid } from "@/components/ui/form";
+import { applySort, parseSortParams } from "@/lib/sort";
 import { createHolder } from "../actions";
 
 export const metadata = { title: "Certificate holders" };
 export const dynamic = "force-dynamic";
 
-export default async function HoldersPage() {
+export default async function HoldersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string; dir?: string }>;
+}) {
+  const { sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["name", "address", "email", "count"]);
   const holders = await prisma.certificateHolder.findMany({
     orderBy: { name: "asc" },
     include: { certificates: { select: { id: true } } },
@@ -17,18 +24,29 @@ export default async function HoldersPage() {
     <>
       <PageHeader title="Certificate holders" description="Entities that request proof of coverage (GCs, lenders, landlords…)." />
       <DataTable
-        rows={holders}
+        rows={applySort(
+          holders,
+          {
+            name: (h) => h.name,
+            address: (h) => h.addressLine1,
+            email: (h) => h.email,
+            count: (h) => h.certificates.length,
+          },
+          sortState,
+        )}
+        sort={{ ...sortState, basePath: "/certificates/holders" }}
         emptyMessage="No holders yet."
         columns={[
-          { key: "name", header: "Holder" },
+          { key: "name", header: "Holder", sortable: true },
           {
             key: "address",
             header: "Address",
+            sortable: true,
             render: (h) =>
               h.addressLine1 ? `${h.addressLine1}, ${h.city ?? ""} ${h.state ?? ""} ${h.zip ?? ""}` : "—",
           },
-          { key: "email", header: "Email", render: (h) => h.email ?? "—" },
-          { key: "count", header: "Certificates", render: (h) => h.certificates.length },
+          { key: "email", header: "Email", sortable: true, render: (h) => h.email ?? "—" },
+          { key: "count", header: "Certificates", sortable: true, render: (h) => h.certificates.length },
         ]}
       />
 

@@ -9,6 +9,8 @@ import { fmtMoney, toNum } from "@/lib/money";
 import { fmtDate, daysUntil } from "@/lib/domain/dates";
 import { ceProgress, expirationSeverity, ALERT_WINDOW_DAYS } from "@/lib/domain/compliance";
 import { humanize } from "@/lib/labels";
+import { ThSort } from "@/components/ui/data-table";
+import { applySort, parseSortParams } from "@/lib/sort";
 import { addCeCredit, addEoPolicy, addLicense, deleteEoPolicy, deleteLicense, renewLicense } from "./actions";
 
 export const metadata = { title: "Compliance" };
@@ -22,7 +24,15 @@ function sevBadge(expiresAt: Date) {
   return <Badge tone="green">OK</Badge>;
 }
 
-export default async function CompliancePage() {
+export default async function CompliancePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ apptSort?: string; apptDir?: string; eoSort?: string; eoDir?: string }>;
+}) {
+  const { apptSort, apptDir, eoSort, eoDir } = await searchParams;
+  const apptState = parseSortParams(apptSort, apptDir, ["carrier", "expires", "status"]);
+  const eoState = parseSortParams(eoSort, eoDir, ["carrier", "policy", "limitEach", "limitAggregate", "premium", "term", "status"]);
+  const sortParams = { apptSort, apptDir, eoSort, eoDir };
   const [licenses, eoPolicies, expiringAppointments, users] = await Promise.all([
     prisma.license.findMany({
       orderBy: { expiresAt: "asc" },
@@ -48,6 +58,34 @@ export default async function CompliancePage() {
       .filter((e) => expirationSeverity(e.expirationDate) !== "OK")
       .map((e) => ({ key: `eo-${e.id}`, label: `Agency E&O ${e.policyNumber} (${e.carrierName})`, date: e.expirationDate })),
   ].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  const sortedAppointments = applySort(
+    expiringAppointments,
+    {
+      carrier: (c) => c.name,
+      expires: (c) => c.appointmentExpiresAt,
+      // Severity is derived from the expiration date, so the date IS the
+      // business priority order for the status column.
+      status: (c) => c.appointmentExpiresAt,
+    },
+    apptState,
+  );
+  const apptTableSort = { ...apptState, basePath: "/compliance", params: sortParams, sortParam: "apptSort", dirParam: "apptDir" };
+
+  const sortedEo = applySort(
+    eoPolicies,
+    {
+      carrier: (e) => e.carrierName,
+      policy: (e) => e.policyNumber,
+      limitEach: (e) => toNum(e.limitEach),
+      limitAggregate: (e) => toNum(e.limitAggregate),
+      premium: (e) => toNum(e.premium),
+      term: (e) => e.effectiveDate,
+      status: (e) => e.expirationDate,
+    },
+    eoState,
+  );
+  const eoTableSort = { ...eoState, basePath: "/compliance", params: sortParams, sortParam: "eoSort", dirParam: "eoDir" };
 
   return (
     <>
@@ -216,20 +254,20 @@ export default async function CompliancePage() {
         <table className="table-base">
           <thead>
             <tr>
-              <th>Carrier</th>
-              <th>Appointment expires</th>
-              <th>Status</th>
+              <ThSort k="carrier" label="Carrier" sort={apptTableSort} />
+              <ThSort k="expires" label="Appointment expires" sort={apptTableSort} />
+              <ThSort k="status" label="Status" sort={apptTableSort} />
             </tr>
           </thead>
           <tbody>
-            {expiringAppointments.length === 0 ? (
+            {sortedAppointments.length === 0 ? (
               <tr>
                 <td colSpan={3} className="py-8 text-center text-sm text-slate-400">
                   No appointed carriers with expiration dates on file.
                 </td>
               </tr>
             ) : (
-              expiringAppointments.map((c) => (
+              sortedAppointments.map((c) => (
                 <tr key={c.id}>
                   <td>
                     <Link href={`/carriers/${c.id}`} className="font-medium text-navy-700 hover:underline">
@@ -252,25 +290,25 @@ export default async function CompliancePage() {
         <table className="table-base">
           <thead>
             <tr>
-              <th>Carrier</th>
-              <th>Policy #</th>
-              <th className="text-right">Limit (each)</th>
-              <th className="text-right">Limit (aggregate)</th>
-              <th className="text-right">Premium</th>
-              <th>Term</th>
-              <th>Status</th>
+              <ThSort k="carrier" label="Carrier" sort={eoTableSort} />
+              <ThSort k="policy" label="Policy #" sort={eoTableSort} />
+              <ThSort k="limitEach" label="Limit (each)" sort={eoTableSort} className="text-right" />
+              <ThSort k="limitAggregate" label="Limit (aggregate)" sort={eoTableSort} className="text-right" />
+              <ThSort k="premium" label="Premium" sort={eoTableSort} className="text-right" />
+              <ThSort k="term" label="Term" sort={eoTableSort} />
+              <ThSort k="status" label="Status" sort={eoTableSort} />
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {eoPolicies.length === 0 ? (
+            {sortedEo.length === 0 ? (
               <tr>
                 <td colSpan={8} className="py-8 text-center text-sm text-slate-400">
                   No E&amp;O policy on file — every agency needs one.
                 </td>
               </tr>
             ) : (
-              eoPolicies.map((e) => (
+              sortedEo.map((e) => (
                 <tr key={e.id}>
                   <td>{e.carrierName}</td>
                   <td>{e.policyNumber}</td>

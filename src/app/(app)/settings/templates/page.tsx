@@ -5,12 +5,20 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Field, FormGrid } from "@/components/ui/form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtDate } from "@/lib/domain/dates";
+import { ThSort } from "@/components/ui/data-table";
+import { applySort, parseSortParams } from "@/lib/sort";
 import { deleteEmailTemplate, saveEmailTemplate } from "../actions";
 
 export const metadata = { title: "Email templates" };
 export const dynamic = "force-dynamic";
 
-export default async function TemplatesPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
+export default async function TemplatesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ edit?: string; sort?: string; dir?: string }>;
+}) {
+  const { sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["key", "name", "subject", "updated"]);
   const session = await requireSession();
   const isAdmin = session.role === "ADMIN";
   const { edit } = await searchParams;
@@ -30,10 +38,10 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
         <table className="table-base">
           <thead>
             <tr>
-              <th>Key</th>
-              <th>Name</th>
-              <th>Subject</th>
-              <th>Updated</th>
+              <ThSort k="key" label="Key" sort={{ ...sortState, basePath: "/settings/templates", params: { edit } }} />
+              <ThSort k="name" label="Name" sort={{ ...sortState, basePath: "/settings/templates", params: { edit } }} />
+              <ThSort k="subject" label="Subject" sort={{ ...sortState, basePath: "/settings/templates", params: { edit } }} />
+              <ThSort k="updated" label="Updated" sort={{ ...sortState, basePath: "/settings/templates", params: { edit } }} />
               <th></th>
             </tr>
           </thead>
@@ -43,7 +51,11 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
                 <td colSpan={5} className="py-8 text-center text-sm text-slate-400">No templates yet.</td>
               </tr>
             ) : (
-              templates.map((t) => (
+              applySort(
+                templates,
+                { key: (t) => t.key, name: (t) => t.name, subject: (t) => t.subject, updated: (t) => t.updatedAt },
+                sortState,
+              ).map((t) => (
                 <tr key={t.id}>
                   <td>
                     <Link href={`/settings/templates?edit=${t.key}`} className="font-medium text-navy-700 hover:underline">

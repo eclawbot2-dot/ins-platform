@@ -2,11 +2,11 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/page-header";
-import { DataTable } from "@/components/ui/data-table";
-import { SearchBar, Pagination, PAGE_SIZE, parsePage } from "@/components/ui/list-controls";
-import { Badge } from "@/components/ui/badge";
+import { SearchBar } from "@/components/ui/list-controls";
 import { CLIENT_STATUS_LABELS } from "@/lib/labels";
 import { fmtMoney, toNum } from "@/lib/money";
+import { fmtDate } from "@/lib/domain/dates";
+import { ClientsView, type ClientRow } from "./clients-view";
 import type { ClientStatus, Prisma } from "@prisma/client";
 
 export const metadata = { title: "Clients" };
@@ -17,10 +17,9 @@ const STATUSES: ClientStatus[] = ["PROSPECT", "ACTIVE", "INACTIVE", "FORMER"];
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; status?: string }>;
 }) {
-  const { q, status, page: pageRaw } = await searchParams;
-  const page = parsePage(pageRaw);
+  const { q, status } = await searchParams;
   const statusFilter = STATUSES.includes(status as ClientStatus) ? (status as ClientStatus) : undefined;
 
   const where: Prisma.ClientWhereInput = {
@@ -37,19 +36,38 @@ export default async function ClientsPage({
       : {}),
   };
 
-  const [clients, total] = await Promise.all([
-    prisma.client.findMany({
-      where,
-      orderBy: { name: "asc" },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      include: {
-        producer: { select: { name: true } },
-        policies: { where: { status: { in: ["ACTIVE", "BOUND"] } }, select: { premium: true } },
-      },
-    }),
-    prisma.client.count({ where }),
-  ]);
+  // Filter server-side (URL is the single data source for both views);
+  // sorting + pagination happen client-side AFTER the filter so sort
+  // applies to the whole result set, not one page (spec §8).
+  const clients = await prisma.client.findMany({
+    where,
+    orderBy: { name: "asc" },
+    include: {
+      producer: { select: { name: true } },
+      policies: { where: { status: { in: ["ACTIVE", "BOUND"] } }, select: { premium: true } },
+    },
+  });
+
+  const rows: ClientRow[] = clients.map((c) => {
+    const premium = c.policies.reduce((acc, p) => acc + toNum(p.premium), 0);
+    return {
+      id: c.id,
+      name: c.name,
+      email: c.email,
+      phone: c.phone,
+      status: c.status,
+      statusLabel: CLIENT_STATUS_LABELS[c.status],
+      type: c.type,
+      city: c.city,
+      state: c.state,
+      producerName: c.producer?.name ?? null,
+      policiesCount: c.policies.length,
+      activePremium: premium,
+      activePremiumFmt: fmtMoney(premium),
+      addedAt: c.createdAt.getTime(),
+      addedDateFmt: fmtDate(c.createdAt),
+    };
+  });
 
   return (
     <>
@@ -62,21 +80,20 @@ export default async function ClientsPage({
           </Link>
         }
       />
-      <div className="mb-4">
-        <SearchBar action="/clients" q={q} placeholder="Search name, email, phone…">
-          <select name="status" defaultValue={statusFilter ?? ""} className="input w-40">
-            <option value="">All statuses</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {CLIENT_STATUS_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </SearchBar>
-      </div>
-      <DataTable
-        rows={clients}
-        rowHref={(c) => `/clients/${c.id}`}
+      <ClientsView
+        clients={rows}
+        toolbar={
+          <SearchBar action="/clients" q={q} placeholder="Search name, email, phone…">
+            <select name="status" defaultValue={statusFilter ?? ""} className="input w-40">
+              <option value="">All statuses</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {CLIENT_STATUS_LABELS[s]}
+                </option>
+              ))}
+            </select>
+          </SearchBar>
+        }
         emptyMessage={
           q || statusFilter ? (
             "No clients match your search."
@@ -89,43 +106,7 @@ export default async function ClientsPage({
             </span>
           )
         }
-        columns={[
-          { key: "name", header: "Name" },
-          {
-            key: "type",
-            header: "Type",
-            className: "hidden lg:table-cell",
-            render: (c) => (c.type === "BUSINESS" ? "Business" : "Individual"),
-          },
-          {
-            key: "status",
-            header: "Status",
-            render: (c) => (
-              <Badge tone={c.status === "ACTIVE" ? "green" : c.status === "PROSPECT" ? "blue" : "slate"}>
-                {CLIENT_STATUS_LABELS[c.status]}
-              </Badge>
-            ),
-          },
-          { key: "email", header: "Email", className: "hidden md:table-cell", render: (c) => c.email ?? "—" },
-          { key: "phone", header: "Phone", render: (c) => c.phone ?? "—" },
-          {
-            key: "city",
-            header: "City",
-            className: "hidden lg:table-cell",
-            render: (c) => (c.city ? `${c.city}, ${c.state ?? ""}` : "—"),
-          },
-          { key: "producer", header: "Producer", className: "hidden md:table-cell", render: (c) => c.producer?.name ?? "—" },
-          {
-            key: "premium",
-            header: "Active premium",
-            className: "text-right",
-            render: (c) => fmtMoney(c.policies.reduce((acc, p) => acc + toNum(p.premium), 0)),
-          },
-        ]}
       />
-      <div className="mt-3">
-        <Pagination basePath="/clients" page={page} total={total} params={{ q, status: statusFilter }} />
-      </div>
     </>
   );
 }

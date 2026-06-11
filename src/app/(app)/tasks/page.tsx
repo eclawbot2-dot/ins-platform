@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid, Select } from "@/components/ui/form";
 import { TASK_STATUS_LABELS } from "@/lib/labels";
 import { fmtDate } from "@/lib/domain/dates";
+import { ThSort } from "@/components/ui/data-table";
+import { applySort, parseSortParams } from "@/lib/sort";
 import { createTask, setTaskStatus } from "./actions";
 import { getWorkspaceSummary } from "@/lib/workspace/client";
 import type { Prisma, TaskStatus } from "@prisma/client";
@@ -15,12 +17,17 @@ export const dynamic = "force-dynamic";
 
 const STATUSES: TaskStatus[] = ["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"];
 
+// Business priority order (not alphabetical).
+const PRIORITY_ORDER: Record<string, number> = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
+
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; mine?: string }>;
+  searchParams: Promise<{ status?: string; mine?: string; sort?: string; dir?: string }>;
 }) {
   const { status, mine } = await searchParams;
+  const { sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["task", "linked", "assigned", "priority", "due", "status"]);
   const statusFilter = STATUSES.includes(status as TaskStatus) ? (status as TaskStatus) : undefined;
 
   const where: Prisma.TaskWhereInput = statusFilter ? { status: statusFilter } : { status: { in: ["OPEN", "IN_PROGRESS"] } };
@@ -45,6 +52,24 @@ export default async function TasksPage({
 
   const now = new Date();
 
+  const sortedTasks = applySort(
+    tasks,
+    {
+      task: (t) => t.title,
+      linked: (t) =>
+        t.client?.name ??
+        t.policy?.policyNumber ??
+        t.claim?.claimNumber ??
+        (t.lead ? `${t.lead.firstName} ${t.lead.lastName}` : t.renewal ? "Renewal" : null),
+      assigned: (t) => t.assignedTo?.name,
+      priority: (t) => PRIORITY_ORDER[t.priority] ?? 9,
+      due: (t) => t.dueDate,
+      status: (t) => TASK_STATUS_LABELS[t.status],
+    },
+    sortState,
+  );
+  const tableSort = { ...sortState, basePath: "/tasks", params: { status: statusFilter, mine } };
+
   return (
     <>
       <PageHeader title="Tasks" description="Follow-ups, renewal work, claim chasers." />
@@ -68,17 +93,17 @@ export default async function TasksPage({
         <table className="table-base">
           <thead>
             <tr>
-              <th>Task</th>
-              <th>Linked to</th>
-              <th>Assigned</th>
-              <th>Priority</th>
-              <th>Due</th>
-              <th>Status</th>
+              <ThSort k="task" label="Task" sort={tableSort} />
+              <ThSort k="linked" label="Linked to" sort={tableSort} />
+              <ThSort k="assigned" label="Assigned" sort={tableSort} />
+              <ThSort k="priority" label="Priority" sort={tableSort} />
+              <ThSort k="due" label="Due" sort={tableSort} />
+              <ThSort k="status" label="Status" sort={tableSort} />
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {tasks.map((t) => {
+            {sortedTasks.map((t) => {
               const overdue = t.dueDate < now && (t.status === "OPEN" || t.status === "IN_PROGRESS");
               const link = t.client
                 ? { href: `/clients/${t.client.id}`, label: t.client.name }
@@ -130,7 +155,7 @@ export default async function TasksPage({
                 </tr>
               );
             })}
-            {tasks.length === 0 ? (
+            {sortedTasks.length === 0 ? (
               <tr>
                 <td colSpan={7} className="py-8 text-center text-slate-400">
                   No tasks.

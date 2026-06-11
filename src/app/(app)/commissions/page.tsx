@@ -5,14 +5,21 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid, Select } from "@/components/ui/form";
-import { fmtMoney } from "@/lib/money";
+import { fmtMoney, toNum } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
+import { applySort, parseSortParams } from "@/lib/sort";
 import { createStatement } from "./actions";
 
 export const metadata = { title: "Commissions" };
 export const dynamic = "force-dynamic";
 
-export default async function CommissionsPage() {
+export default async function CommissionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string; dir?: string }>;
+}) {
+  const { sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["carrier", "period", "date", "total", "lines", "status"]);
   const [statements, carriers] = await Promise.all([
     prisma.commissionStatement.findMany({
       orderBy: { statementDate: "desc" },
@@ -37,15 +44,27 @@ export default async function CommissionsPage() {
       />
 
       <DataTable
-        rows={statements}
+        rows={applySort(
+          statements,
+          {
+            carrier: (s) => s.carrier.name,
+            period: (s) => s.statementDate,
+            date: (s) => s.statementDate,
+            total: (s) => toNum(s.totalAmount),
+            lines: (s) => s.lines.length,
+            status: (s) => s.status,
+          },
+          sortState,
+        )}
         rowHref={(s) => `/commissions/${s.id}`}
+        sort={{ ...sortState, basePath: "/commissions" }}
         emptyMessage="No statements yet — create one below."
         columns={[
-          { key: "carrier", header: "Carrier", render: (s) => s.carrier.name },
-          { key: "period", header: "Period", render: (s) => s.periodLabel ?? fmtDate(s.statementDate) },
-          { key: "date", header: "Statement date", render: (s) => fmtDate(s.statementDate) },
-          { key: "total", header: "Total", className: "text-right", render: (s) => fmtMoney(s.totalAmount) },
-          { key: "lines", header: "Lines", render: (s) => s.lines.length },
+          { key: "carrier", header: "Carrier", sortable: true, render: (s) => s.carrier.name },
+          { key: "period", header: "Period", sortable: true, render: (s) => s.periodLabel ?? fmtDate(s.statementDate) },
+          { key: "date", header: "Statement date", sortable: true, render: (s) => fmtDate(s.statementDate) },
+          { key: "total", header: "Total", className: "text-right", sortable: true, render: (s) => fmtMoney(s.totalAmount) },
+          { key: "lines", header: "Lines", sortable: true, render: (s) => s.lines.length },
           {
             key: "recon",
             header: "Reconciliation",
@@ -65,6 +84,7 @@ export default async function CommissionsPage() {
           {
             key: "status",
             header: "Status",
+            sortable: true,
             render: (s) => (
               <Badge tone={s.status === "RECONCILED" ? "green" : s.status === "RECONCILING" ? "amber" : "slate"}>{s.status}</Badge>
             ),

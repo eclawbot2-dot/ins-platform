@@ -1,11 +1,10 @@
-import { ExternalLink } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requirePortalSession } from "@/lib/portal";
 import { portalInvoiceWhere } from "@/lib/domain/portal-scope";
-import { Badge } from "@/components/ui/badge";
 import { INVOICE_STATUS_LABELS, invoiceStatusTone } from "@/lib/labels";
 import { fmtMoneyCents, toNum } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
+import { PortalInvoicesTable, type PortalInvoiceRow } from "./invoices-table";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +22,27 @@ export default async function PortalInvoicesPage() {
     0,
   );
 
+  const rows: PortalInvoiceRow[] = invoices.map((i) => {
+    const balance = toNum(i.amount) - toNum(i.paidAmount);
+    return {
+      id: i.id,
+      invoiceNumber: i.invoiceNumber,
+      policyNumber: i.policy?.policyNumber ?? null,
+      issuedAt: i.issueDate.getTime(),
+      issuedFmt: fmtDate(i.issueDate),
+      dueAt: i.dueDate.getTime(),
+      dueFmt: fmtDate(i.dueDate),
+      amount: toNum(i.amount),
+      amountFmt: fmtMoneyCents(i.amount),
+      balance,
+      balanceFmt: fmtMoneyCents(balance),
+      status: i.status,
+      statusLabel: INVOICE_STATUS_LABELS[i.status],
+      statusTone: invoiceStatusTone(i.status),
+      xeroPaymentUrl: i.xeroPaymentUrl,
+    };
+  });
+
   return (
     <>
       <div className="mb-5">
@@ -35,70 +55,7 @@ export default async function PortalInvoicesPage() {
       {invoices.length === 0 ? (
         <div className="card-pad text-sm text-slate-600">No invoices on file.</div>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="table-base">
-            <thead>
-              <tr>
-                <th>Invoice</th>
-                <th>Policy</th>
-                <th>Issued</th>
-                <th>Due</th>
-                <th className="text-right">Amount</th>
-                <th className="text-right">Balance</th>
-                <th>Status</th>
-                <th aria-label="Pay" />
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((i) => {
-                const balance = toNum(i.amount) - toNum(i.paidAmount);
-                return (
-                  <tr key={i.id}>
-                    <td className="font-medium text-slate-800">
-                      {i.invoiceNumber}
-                      {i.xeroPaymentUrl && i.status !== "PAID" ? (
-                        // Mobile-visible Pay-now affordance — the dedicated
-                        // right-hand column sits off-screen at 390px until
-                        // the table is scrolled, so surface the same Xero
-                        // link in the always-visible first column.
-                        <a
-                          href={i.xeroPaymentUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn-primary btn-sm mt-1 flex w-fit sm:hidden"
-                        >
-                          Pay now <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ) : null}
-                    </td>
-                    <td>{i.policy?.policyNumber ?? "—"}</td>
-                    <td>{fmtDate(i.issueDate)}</td>
-                    <td>{fmtDate(i.dueDate)}</td>
-                    <td className="text-right">{fmtMoneyCents(i.amount)}</td>
-                    <td className="text-right">{fmtMoneyCents(balance)}</td>
-                    <td>
-                      <Badge tone={invoiceStatusTone(i.status)}>{INVOICE_STATUS_LABELS[i.status]}</Badge>
-                    </td>
-                    <td className="text-right">
-                      {i.xeroPaymentUrl && i.status !== "PAID" ? (
-                        // Online payment goes through the Xero invoice
-                        // "Pay now" link — never a direct card charge here.
-                        <a
-                          href={i.xeroPaymentUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn-primary btn-sm hidden sm:inline-flex"
-                        >
-                          Pay now <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <PortalInvoicesTable rows={rows} />
       )}
 
       <p className="mt-4 text-xs text-slate-500">

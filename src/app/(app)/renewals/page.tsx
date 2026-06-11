@@ -6,7 +6,9 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/form";
 import { LOB_LABELS, RENEWAL_STATUS_LABELS, renewalStatusTone } from "@/lib/labels";
-import { fmtMoney } from "@/lib/money";
+import { fmtMoney, toNum } from "@/lib/money";
+import { ThSort } from "@/components/ui/data-table";
+import { applySort, parseSortParams } from "@/lib/sort";
 import { fmtDate, daysUntil } from "@/lib/domain/dates";
 import { renewalBucket } from "@/lib/domain/renewals";
 import { assignRenewal, generateRenewals, setRenewalStatus } from "./actions";
@@ -20,9 +22,10 @@ const OPEN_STATUSES: RenewalStatus[] = ["PENDING_REVIEW", "REMARKETING", "QUOTED
 export default async function RenewalsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; sort?: string; dir?: string }>;
 }) {
-  const { status } = await searchParams;
+  const { status, sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["policy", "client", "line", "premium", "xdate", "days", "status", "assigned"]);
   const allStatuses: RenewalStatus[] = ["PENDING_REVIEW", "REMARKETING", "QUOTED", "RENEWED", "LOST"];
   const statusFilter = allStatuses.includes(status as RenewalStatus) ? (status as RenewalStatus) : undefined;
 
@@ -41,6 +44,22 @@ export default async function RenewalsPage({
   ]);
 
   const now = new Date();
+  // Filter (where) → sort (copy) → render.
+  const sortedRenewals = applySort(
+    renewals,
+    {
+      policy: (r) => r.policy.policyNumber,
+      client: (r) => r.policy.client.name,
+      line: (r) => LOB_LABELS[r.policy.lineOfBusiness],
+      premium: (r) => toNum(r.policy.premium),
+      xdate: (r) => r.expirationDate,
+      days: (r) => r.expirationDate,
+      status: (r) => RENEWAL_STATUS_LABELS[r.status],
+      assigned: (r) => r.assignedTo?.name,
+    },
+    sortState,
+  );
+  const tableSort = { ...sortState, basePath: "/renewals", params: { status: statusFilter } };
   const open = renewals.filter((r) => OPEN_STATUSES.includes(r.status));
   const overdue = open.filter((r) => renewalBucket(r.expirationDate, now) === "OVERDUE").length;
   const due30 = open.filter((r) => renewalBucket(r.expirationDate, now) === "30").length;
@@ -83,19 +102,19 @@ export default async function RenewalsPage({
         <table className="table-base">
           <thead>
             <tr>
-              <th>Policy</th>
-              <th>Client</th>
-              <th>Line / carrier</th>
-              <th className="text-right">Premium</th>
-              <th>X-date</th>
-              <th>Days</th>
-              <th>Status</th>
-              <th>Assigned</th>
+              <ThSort k="policy" label="Policy" sort={tableSort} />
+              <ThSort k="client" label="Client" sort={tableSort} />
+              <ThSort k="line" label="Line / carrier" sort={tableSort} />
+              <ThSort k="premium" label="Premium" sort={tableSort} className="text-right" />
+              <ThSort k="xdate" label="X-date" sort={tableSort} />
+              <ThSort k="days" label="Days" sort={tableSort} />
+              <ThSort k="status" label="Status" sort={tableSort} />
+              <ThSort k="assigned" label="Assigned" sort={tableSort} />
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {renewals.map((r) => {
+            {sortedRenewals.map((r) => {
               const days = daysUntil(r.expirationDate, now);
               return (
                 <tr key={r.id}>
@@ -166,7 +185,7 @@ export default async function RenewalsPage({
                 </tr>
               );
             })}
-            {renewals.length === 0 ? (
+            {sortedRenewals.length === 0 ? (
               <tr>
                 <td colSpan={9} className="py-8 text-center text-slate-400">
                   No renewals in this view — run the 90-day scan.

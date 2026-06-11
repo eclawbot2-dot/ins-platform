@@ -4,6 +4,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { StatCard } from "@/components/ui/stat-card";
 import { producerPayables } from "@/lib/reports/payables";
 import { fmtMoneyCents } from "@/lib/money";
+import { applySort, parseSortParams } from "@/lib/sort";
 
 export const metadata = { title: "Producer payables" };
 export const dynamic = "force-dynamic";
@@ -11,9 +12,10 @@ export const dynamic = "force-dynamic";
 export default async function PayablesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; sort?: string; dir?: string }>;
 }) {
-  const { from, to } = await searchParams;
+  const { from, to, sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["producerName", "lineCount", "commission"]);
   const fromDate = from ? new Date(`${from}T00:00:00Z`) : undefined;
   const toDate = to ? new Date(`${to}T23:59:59Z`) : undefined;
   const report = await producerPayables({ from: fromDate, to: toDate });
@@ -60,13 +62,18 @@ export default async function PayablesPage({
       </div>
 
       <DataTable
-        rows={report.rows}
+        rows={applySort(
+          report.rows,
+          { producerName: (r) => r.producerName, lineCount: (r) => r.lineCount, commission: (r) => r.commission },
+          sortState,
+        )}
         rowKey={(r) => r.producerId}
+        sort={{ ...sortState, basePath: "/commissions/payables", params: { from, to } }}
         emptyMessage="No reconciled statement lines in this period."
         columns={[
-          { key: "producerName", header: "Producer" },
-          { key: "lineCount", header: "Statement lines" },
-          { key: "commission", header: "Payable commission", className: "text-right", render: (r) => fmtMoneyCents(r.commission) },
+          { key: "producerName", header: "Producer", sortable: true },
+          { key: "lineCount", header: "Statement lines", sortable: true },
+          { key: "commission", header: "Payable commission", className: "text-right", sortable: true, render: (r) => fmtMoneyCents(r.commission) },
         ]}
       />
       <p className="mt-3 text-xs text-slate-400">

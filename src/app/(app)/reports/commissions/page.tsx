@@ -3,12 +3,26 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { commissionRevenue } from "@/lib/reports/commission-revenue";
 import { fmtMoneyCents, roundMoney } from "@/lib/money";
+import { ThSort } from "@/components/ui/data-table";
+import { applySort, parseSortParams } from "@/lib/sort";
 
 export const metadata = { title: "Commission revenue" };
 export const dynamic = "force-dynamic";
 
-export default async function CommissionRevenueReportPage() {
+export default async function CommissionRevenueReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string; dir?: string }>;
+}) {
+  const { sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["month", "commission", "lines"]);
+  const tableSort = { ...sortState, basePath: "/reports/commissions" };
   const months = await commissionRevenue(12);
+  const sortedMonths = applySort(
+    months,
+    { month: (m) => m.month, commission: (m) => m.commission, lines: (m) => m.lineCount },
+    sortState,
+  );
   const total = roundMoney(months.reduce((acc, m) => acc + m.commission, 0));
   const max = Math.max(1, ...months.map((m) => m.commission));
   const nonZero = months.filter((m) => m.commission > 0);
@@ -36,14 +50,14 @@ export default async function CommissionRevenueReportPage() {
         <table className="table-base">
           <thead>
             <tr>
-              <th>Month</th>
-              <th className="text-right">Commission</th>
-              <th className="text-right">Lines</th>
+              <ThSort k="month" label="Month" sort={tableSort} />
+              <ThSort k="commission" label="Commission" sort={tableSort} className="text-right" />
+              <ThSort k="lines" label="Lines" sort={tableSort} className="text-right" />
               <th className="w-1/3"></th>
             </tr>
           </thead>
           <tbody>
-            {months.map((m) => (
+            {sortedMonths.map((m) => (
               <tr key={m.month}>
                 <td className="font-medium">{m.month}</td>
                 <td className="text-right">{fmtMoneyCents(m.commission)}</td>

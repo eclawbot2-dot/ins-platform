@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/page-header";
 import { SearchBar, Pagination, PAGE_SIZE, parsePage } from "@/components/ui/list-controls";
+import { ThSort } from "@/components/ui/data-table";
+import { parseSortParams, type SortDirection } from "@/lib/sort";
 import type { Prisma } from "@prisma/client";
 
 export const metadata = { title: "Audit log" };
@@ -16,12 +18,23 @@ const dateFmt = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
+// Server-side sort: orders the FULL dataset before pagination.
+const SORTS: Record<string, (d: SortDirection) => Prisma.AuditLogOrderByWithRelationInput> = {
+  when: (d) => ({ createdAt: d }),
+  actor: (d) => ({ user: { name: d } }),
+  action: (d) => ({ action: d }),
+  entity: (d) => ({ entityType: d }),
+  ip: (d) => ({ ip: d }),
+};
+
 export default async function AuditLogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; sort?: string; dir?: string }>;
 }) {
-  const { q, page: pageRaw } = await searchParams;
+  const { q, page: pageRaw, sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, Object.keys(SORTS));
+  const tableSort = { ...sortState, basePath: "/settings/audit", params: { q } };
   const page = parsePage(pageRaw);
 
   const where: Prisma.AuditLogWhereInput = q
@@ -39,7 +52,7 @@ export default async function AuditLogPage({
   const [rows, total] = await Promise.all([
     prisma.auditLog.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: sortState.sortKey ? SORTS[sortState.sortKey](sortState.sortDir) : { createdAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: { user: { select: { name: true, email: true } } },
@@ -63,12 +76,12 @@ export default async function AuditLogPage({
         <table className="table-base">
           <thead>
             <tr>
-              <th>When (UTC)</th>
-              <th>Actor</th>
-              <th>Action</th>
-              <th>Entity</th>
+              <ThSort k="when" label="When (UTC)" sort={tableSort} />
+              <ThSort k="actor" label="Actor" sort={tableSort} />
+              <ThSort k="action" label="Action" sort={tableSort} />
+              <ThSort k="entity" label="Entity" sort={tableSort} />
               <th>Detail</th>
-              <th>IP</th>
+              <ThSort k="ip" label="IP" sort={tableSort} />
             </tr>
           </thead>
           <tbody>
@@ -92,7 +105,7 @@ export default async function AuditLogPage({
         </table>
       </div>
       <div className="mt-3">
-        <Pagination basePath="/settings/audit" page={page} total={total} params={{ q }} />
+        <Pagination basePath="/settings/audit" page={page} total={total} params={{ q, sort, dir }} />
       </div>
     </>
   );

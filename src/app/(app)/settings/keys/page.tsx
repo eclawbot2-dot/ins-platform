@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Field } from "@/components/ui/form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtDate } from "@/lib/domain/dates";
+import { ThSort } from "@/components/ui/data-table";
+import { applySort, parseSortParams } from "@/lib/sort";
 import { createLeadIntakeKey, deleteLeadIntakeKey, toggleLeadIntakeKey } from "../actions";
 
 export const metadata = { title: "Lead intake keys" };
@@ -16,7 +18,14 @@ function maskKey(key: string): string {
   return `${key.slice(0, 10)}…${key.slice(-4)}`;
 }
 
-export default async function LeadIntakeKeysPage() {
+export default async function LeadIntakeKeysPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string; dir?: string }>;
+}) {
+  const { sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, ["label", "status", "lastUsed", "created"]);
+  const tableSort = { ...sortState, basePath: "/settings/keys" };
   const session = await requireSession();
   const isAdmin = session.role === "ADMIN";
   const keys = await prisma.leadIntakeKey.findMany({ orderBy: { createdAt: "desc" } });
@@ -34,11 +43,11 @@ export default async function LeadIntakeKeysPage() {
         <table className="table-base">
           <thead>
             <tr>
-              <th>Label</th>
+              <ThSort k="label" label="Label" sort={tableSort} />
               <th>Key</th>
-              <th>Status</th>
-              <th>Last used</th>
-              <th>Created</th>
+              <ThSort k="status" label="Status" sort={tableSort} />
+              <ThSort k="lastUsed" label="Last used" sort={tableSort} />
+              <ThSort k="created" label="Created" sort={tableSort} />
               <th></th>
             </tr>
           </thead>
@@ -51,7 +60,11 @@ export default async function LeadIntakeKeysPage() {
               <td>—</td>
               <td></td>
             </tr>
-            {keys.map((k) => (
+            {applySort(
+              keys,
+              { label: (k) => k.label, status: (k) => k.active, lastUsed: (k) => k.lastUsedAt, created: (k) => k.createdAt },
+              sortState,
+            ).map((k) => (
               <tr key={k.id}>
                 <td className="font-medium">{k.label}</td>
                 <td className="font-mono text-xs">{maskKey(k.key)}</td>

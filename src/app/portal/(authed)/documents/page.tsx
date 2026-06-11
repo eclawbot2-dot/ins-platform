@@ -1,9 +1,9 @@
-import { Download, FileText } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requirePortalSession } from "@/lib/portal";
 import { portalDocumentWhere } from "@/lib/domain/portal-scope";
 import { humanize } from "@/lib/labels";
 import { fmtDate } from "@/lib/domain/dates";
+import { PortalDocumentsTable, type PortalDocumentRow } from "./documents-table";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,15 @@ export default async function PortalDocumentsPage() {
     include: { policy: { select: { policyNumber: true } } },
     orderBy: { createdAt: "desc" },
   });
+
+  const rows: PortalDocumentRow[] = documents.map((d) => ({
+    id: d.id,
+    fileName: d.fileName,
+    typeLabel: humanize(d.docType),
+    policyNumber: d.policy?.policyNumber ?? null,
+    addedAt: d.createdAt.getTime(),
+    addedFmt: fmtDate(d.createdAt),
+  }));
 
   return (
     <>
@@ -30,38 +39,7 @@ export default async function PortalDocumentsPage() {
           your agency team and we&apos;ll post it here.
         </div>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="table-base">
-            <thead>
-              <tr>
-                <th>File</th>
-                <th>Type</th>
-                <th>Policy</th>
-                <th>Added</th>
-                <th aria-label="Download" />
-              </tr>
-            </thead>
-            <tbody>
-              {documents.map((d) => (
-                <tr key={d.id}>
-                  <td>
-                    <span className="inline-flex items-center gap-1.5 font-medium text-slate-800">
-                      <FileText className="h-4 w-4 text-gold-500" /> {d.fileName}
-                    </span>
-                  </td>
-                  <td>{humanize(d.docType)}</td>
-                  <td>{d.policy?.policyNumber ?? "—"}</td>
-                  <td>{fmtDate(d.createdAt)}</td>
-                  <td className="text-right">
-                    <a href={`/api/portal/documents/${d.id}`} className="btn btn-sm">
-                      <Download className="h-3.5 w-3.5" /> Download
-                    </a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <PortalDocumentsTable rows={rows} />
       )}
     </>
   );

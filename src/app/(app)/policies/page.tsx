@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ALL_LOBS, BILLING_LABELS, LOB_LABELS, POLICY_STATUS_LABELS, policyStatusTone } from "@/lib/labels";
 import { fmtMoney } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
+import { parseSortParams, type SortDirection } from "@/lib/sort";
 import type { LineOfBusiness, PolicyStatus, Prisma } from "@prisma/client";
 
 export const metadata = { title: "Policies" };
@@ -15,12 +16,26 @@ export const dynamic = "force-dynamic";
 
 const STATUSES: PolicyStatus[] = ["QUOTE", "BOUND", "ACTIVE", "RENEWED", "CANCELLED", "EXPIRED", "NON_RENEWED"];
 
+// Server-side sort: orders the FULL dataset before pagination.
+const SORTS: Record<string, (d: SortDirection) => Prisma.PolicyOrderByWithRelationInput> = {
+  policyNumber: (d) => ({ policyNumber: d }),
+  client: (d) => ({ client: { name: d } }),
+  lob: (d) => ({ lineOfBusiness: d }),
+  carrier: (d) => ({ carrier: { name: d } }),
+  status: (d) => ({ status: d }),
+  billing: (d) => ({ billingType: d }),
+  term: (d) => ({ effectiveDate: d }),
+  premium: (d) => ({ premium: d }),
+  producer: (d) => ({ producer: { name: d } }),
+};
+
 export default async function PoliciesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; lob?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; lob?: string; page?: string; sort?: string; dir?: string }>;
 }) {
-  const { q, status, lob, page: pageRaw } = await searchParams;
+  const { q, status, lob, page: pageRaw, sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, Object.keys(SORTS));
   const page = parsePage(pageRaw);
   const statusFilter = STATUSES.includes(status as PolicyStatus) ? (status as PolicyStatus) : undefined;
   const lobFilter = ALL_LOBS.includes(lob as LineOfBusiness) ? (lob as LineOfBusiness) : undefined;
@@ -42,7 +57,7 @@ export default async function PoliciesPage({
   const [policies, total] = await Promise.all([
     prisma.policy.findMany({
       where,
-      orderBy: { expirationDate: "asc" },
+      orderBy: sortState.sortKey ? SORTS[sortState.sortKey](sortState.sortDir) : { expirationDate: "asc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: {
@@ -88,6 +103,7 @@ export default async function PoliciesPage({
       <DataTable
         rows={policies}
         rowHref={(p) => `/policies/${p.id}`}
+        sort={{ ...sortState, basePath: "/policies", params: { q, status: statusFilter, lob: lobFilter } }}
         emptyMessage={
           q || statusFilter || lobFilter ? (
             "No policies match your search."
@@ -101,31 +117,33 @@ export default async function PoliciesPage({
           )
         }
         columns={[
-          { key: "policyNumber", header: "Policy #" },
-          { key: "client", header: "Client", render: (p) => p.client.name },
-          { key: "lob", header: "Line", className: "hidden md:table-cell", render: (p) => LOB_LABELS[p.lineOfBusiness] },
-          { key: "carrier", header: "Carrier", className: "hidden md:table-cell", render: (p) => p.carrier.name },
+          { key: "policyNumber", header: "Policy #", sortable: true },
+          { key: "client", header: "Client", sortable: true, render: (p) => p.client.name },
+          { key: "lob", header: "Line", className: "hidden md:table-cell", sortable: true, render: (p) => LOB_LABELS[p.lineOfBusiness] },
+          { key: "carrier", header: "Carrier", className: "hidden md:table-cell", sortable: true, render: (p) => p.carrier.name },
           {
             key: "status",
             header: "Status",
+            sortable: true,
             render: (p) => <Badge tone={policyStatusTone(p.status)}>{POLICY_STATUS_LABELS[p.status]}</Badge>,
           },
-          { key: "billing", header: "Billing", className: "hidden lg:table-cell", render: (p) => BILLING_LABELS[p.billingType] },
+          { key: "billing", header: "Billing", className: "hidden lg:table-cell", sortable: true, render: (p) => BILLING_LABELS[p.billingType] },
           {
             key: "term",
             header: "Term",
+            sortable: true,
             render: (p) => (
               <span className="whitespace-nowrap">
                 {fmtDate(p.effectiveDate)} – {fmtDate(p.expirationDate)}
               </span>
             ),
           },
-          { key: "premium", header: "Premium", className: "text-right", render: (p) => fmtMoney(p.premium) },
-          { key: "producer", header: "Producer", className: "hidden lg:table-cell", render: (p) => p.producer.name },
+          { key: "premium", header: "Premium", className: "text-right", sortable: true, render: (p) => fmtMoney(p.premium) },
+          { key: "producer", header: "Producer", className: "hidden lg:table-cell", sortable: true, render: (p) => p.producer.name },
         ]}
       />
       <div className="mt-3">
-        <Pagination basePath="/policies" page={page} total={total} params={{ q, status: statusFilter, lob: lobFilter }} />
+        <Pagination basePath="/policies" page={page} total={total} params={{ q, status: statusFilter, lob: lobFilter, sort, dir }} />
       </div>
     </>
   );

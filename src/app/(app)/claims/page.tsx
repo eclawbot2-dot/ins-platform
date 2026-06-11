@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { CLAIM_STATUS_LABELS, LOB_LABELS, claimStatusTone } from "@/lib/labels";
 import { fmtMoney } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
+import { parseSortParams, type SortDirection } from "@/lib/sort";
 import type { ClaimStatus, Prisma } from "@prisma/client";
 
 export const metadata = { title: "Claims" };
@@ -15,12 +16,26 @@ export const dynamic = "force-dynamic";
 
 const STATUSES: ClaimStatus[] = ["REPORTED", "OPEN", "UNDER_REVIEW", "APPROVED", "DENIED", "CLOSED"];
 
+// Server-side sort: orders the FULL dataset before pagination.
+const SORTS: Record<string, (d: SortDirection) => Prisma.ClaimOrderByWithRelationInput> = {
+  claimNumber: (d) => ({ claimNumber: d }),
+  client: (d) => ({ client: { name: d } }),
+  policy: (d) => ({ policy: { policyNumber: d } }),
+  lob: (d) => ({ policy: { lineOfBusiness: d } }),
+  carrier: (d) => ({ policy: { carrier: { name: d } } }),
+  status: (d) => ({ status: d }),
+  dol: (d) => ({ dateOfLoss: d }),
+  reserve: (d) => ({ reserveAmount: d }),
+  paid: (d) => ({ paidAmount: d }),
+};
+
 export default async function ClaimsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; page?: string; sort?: string; dir?: string }>;
 }) {
-  const { q, status, page: pageRaw } = await searchParams;
+  const { q, status, page: pageRaw, sort, dir } = await searchParams;
+  const sortState = parseSortParams(sort, dir, Object.keys(SORTS));
   const page = parsePage(pageRaw);
   const statusFilter = STATUSES.includes(status as ClaimStatus) ? (status as ClaimStatus) : undefined;
 
@@ -41,7 +56,7 @@ export default async function ClaimsPage({
   const [claims, total] = await Promise.all([
     prisma.claim.findMany({
       where,
-      orderBy: { reportedAt: "desc" },
+      orderBy: sortState.sortKey ? SORTS[sortState.sortKey](sortState.sortDir) : { reportedAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: {
@@ -78,25 +93,27 @@ export default async function ClaimsPage({
       <DataTable
         rows={claims}
         rowHref={(c) => `/claims/${c.id}`}
+        sort={{ ...sortState, basePath: "/claims", params: { q, status: statusFilter } }}
         emptyMessage="No claims match."
         columns={[
-          { key: "claimNumber", header: "Claim #" },
-          { key: "client", header: "Client", render: (c) => c.client.name },
-          { key: "policy", header: "Policy", render: (c) => c.policy.policyNumber },
-          { key: "lob", header: "Line", render: (c) => LOB_LABELS[c.policy.lineOfBusiness] },
-          { key: "carrier", header: "Carrier", render: (c) => c.policy.carrier.name },
+          { key: "claimNumber", header: "Claim #", sortable: true },
+          { key: "client", header: "Client", sortable: true, render: (c) => c.client.name },
+          { key: "policy", header: "Policy", sortable: true, render: (c) => c.policy.policyNumber },
+          { key: "lob", header: "Line", sortable: true, render: (c) => LOB_LABELS[c.policy.lineOfBusiness] },
+          { key: "carrier", header: "Carrier", sortable: true, render: (c) => c.policy.carrier.name },
           {
             key: "status",
             header: "Status",
+            sortable: true,
             render: (c) => <Badge tone={claimStatusTone(c.status)}>{CLAIM_STATUS_LABELS[c.status]}</Badge>,
           },
-          { key: "dol", header: "Date of loss", render: (c) => fmtDate(c.dateOfLoss) },
-          { key: "reserve", header: "Reserve", className: "text-right", render: (c) => (c.reserveAmount ? fmtMoney(c.reserveAmount) : "—") },
-          { key: "paid", header: "Paid", className: "text-right", render: (c) => (c.paidAmount ? fmtMoney(c.paidAmount) : "—") },
+          { key: "dol", header: "Date of loss", sortable: true, render: (c) => fmtDate(c.dateOfLoss) },
+          { key: "reserve", header: "Reserve", className: "text-right", sortable: true, render: (c) => (c.reserveAmount ? fmtMoney(c.reserveAmount) : "—") },
+          { key: "paid", header: "Paid", className: "text-right", sortable: true, render: (c) => (c.paidAmount ? fmtMoney(c.paidAmount) : "—") },
         ]}
       />
       <div className="mt-3">
-        <Pagination basePath="/claims" page={page} total={total} params={{ q, status: statusFilter }} />
+        <Pagination basePath="/claims" page={page} total={total} params={{ q, status: statusFilter, sort, dir }} />
       </div>
     </>
   );
