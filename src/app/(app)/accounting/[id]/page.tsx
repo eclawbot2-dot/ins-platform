@@ -131,7 +131,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       </div>
 
       {isOpen ? (
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="card-pad">
             <h2 className="section-title mb-3">Record payment</h2>
             <p className="mb-3 text-xs text-slate-500">

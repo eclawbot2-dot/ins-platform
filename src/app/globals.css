@@ -74,7 +74,11 @@ summary:focus-visible,
   }
 }
 
-/* ── Shared component classes ─────────────────────────────────────── */
+/* ── Shared component classes ─────────────────────────────────────────
+   Wrapped in @layer components so plain utility classes (w-40, pl-8,
+   py-2, justify-center…) can override them — un-layered CSS always
+   beats Tailwind's layered utilities. */
+@layer components {
 .card {
   @apply rounded-xl border border-slate-200 bg-white shadow-sm;
 }
@@ -149,6 +153,7 @@ summary:focus-visible,
 .section-title {
   @apply text-sm font-semibold uppercase tracking-wide text-slate-500;
 }
+} /* end @layer components */
 
 /* ── Print styles for proposals / certificates ────────────────────── */
 @media print {

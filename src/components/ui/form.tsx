@@ -24,7 +24,7 @@ export function Field({
 }
 
 export function FormGrid({ children, cols = 2 }: { children: ReactNode; cols?: 2 | 3 }) {
-  return <div className={`grid gap-4 ${cols === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>{children}</div>;
+  return <div className={`grid grid-cols-1 gap-4 ${cols === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>{children}</div>;
 }
 
 export function Select({

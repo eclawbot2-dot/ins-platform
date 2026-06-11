@@ -101,7 +101,7 @@ export default async function PortalDashboardPage() {
         ))}
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="card-pad">
           <h2 className="section-title mb-3">Your agency team</h2>
           <dl className="space-y-3 text-sm">
@@ -144,7 +144,7 @@ export default async function PortalDashboardPage() {
 
         <div className="card-pad">
           <h2 className="section-title mb-3">Quick actions</h2>
-          <div className="grid gap-2">
+          <div className="grid grid-cols-1 gap-2">
             <Link href="/portal/claims/new" className="btn justify-start">Report a claim (FNOL)</Link>
             <Link href="/portal/certificates" className="btn justify-start">Request a certificate of insurance</Link>
             <Link href="/portal/invoices" className="btn justify-start">View & pay invoices</Link>

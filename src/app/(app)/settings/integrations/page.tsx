@@ -66,7 +66,7 @@ export default async function IntegrationsPage() {
               <ol className="list-decimal space-y-1 pl-5 text-xs">
                 <li>Create an app at developer.xero.com → My Apps (OAuth 2.0, web app).</li>
                 <li>
-                  Register redirect URI <code className="rounded bg-slate-100 px-1">{xeroRedirectUri()}</code>
+                  Register redirect URI <code className="rounded bg-slate-100 px-1 break-all">{xeroRedirectUri()}</code>
                 </li>
                 <li>Put XERO_CLIENT_ID / XERO_CLIENT_SECRET into .env and restart the app.</li>
                 <li>Return here and click Connect.</li>
@@ -126,7 +126,7 @@ export default async function IntegrationsPage() {
           {!workspace.saConfigured ? (
             <div className="text-sm text-slate-600">
               <p className="mb-2">
-                Service-account key not found at <code className="rounded bg-slate-100 px-1">{saKeyPath}</code>. The app
+                Service-account key not found at <code className="rounded bg-slate-100 px-1 break-all">{saKeyPath}</code>. The app
                 runs fine without it — Gmail/Calendar features stay off. To enable:
               </p>
               <ol className="list-decimal space-y-1 pl-5 text-xs">
@@ -134,8 +134,8 @@ export default async function IntegrationsPage() {
                 <li>Create a JSON key and save it to the path above (or set GOOGLE_WORKSPACE_SA_KEY_FILE).</li>
                 <li>
                   In Workspace Admin → Security → API controls → Domain-wide delegation, authorize the SA client ID with
-                  scopes <code className="rounded bg-slate-100 px-1">gmail.send</code> and{" "}
-                  <code className="rounded bg-slate-100 px-1">calendar</code>.
+                  scopes <code className="rounded bg-slate-100 px-1 break-all">gmail.send</code> and{" "}
+                  <code className="rounded bg-slate-100 px-1 break-all">calendar</code>.
                 </li>
                 <li>Enter the user to impersonate below and enable.</li>
               </ol>
@@ -172,7 +172,7 @@ export default async function IntegrationsPage() {
             </span>
           </div>
           <p className="text-sm text-slate-600">
-            Sender: <code className="rounded bg-slate-100 px-1">{process.env.EMAIL_FROM ?? "no-reply@ins.jahdev.com"}</code>.{" "}
+            Sender: <code className="rounded bg-slate-100 px-1 break-all">{process.env.EMAIL_FROM ?? "no-reply@ins.jahdev.com"}</code>.{" "}
             {resendConfigured
               ? "Emails are sent via Resend."
               : "Emails are currently logged, not sent. To activate: verify the ins.jahdev.com domain in Resend, then set EMAIL_TRANSPORT=resend and RESEND_API_KEY in .env. Never send from braetr.com for this app."}

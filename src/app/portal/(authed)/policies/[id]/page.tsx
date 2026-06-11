@@ -42,7 +42,7 @@ export default async function PortalPolicyDetailPage({ params }: { params: Promi
         <Badge tone={policyStatusTone(policy.status)}>{POLICY_STATUS_LABELS[policy.status]}</Badge>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="card-pad">
           <h2 className="section-title mb-3">Coverage</h2>
           <dl className="grid grid-cols-2 gap-3">

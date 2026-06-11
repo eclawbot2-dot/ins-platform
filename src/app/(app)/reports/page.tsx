@@ -53,7 +53,7 @@ export default function ReportsPage() {
   return (
     <>
       <PageHeader title="Reports" description="Agency analytics — every report exports CSV." />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {REPORTS.map((r) => (
           <Link key={r.href} href={r.href} className="card-pad transition hover:shadow-md">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">

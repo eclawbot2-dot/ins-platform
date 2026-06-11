@@ -22,9 +22,9 @@ export function PageHeader({
 
 export function DetailItem({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="mt-0.5 text-sm text-slate-800">{children ?? "—"}</dd>
+      <dd className="mt-0.5 break-words text-sm text-slate-800">{children ?? "—"}</dd>
     </div>
   );
 }

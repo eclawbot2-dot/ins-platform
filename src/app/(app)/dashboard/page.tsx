@@ -170,7 +170,7 @@ export default async function DashboardPage() {
         </div>
       ) : null}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="card-pad">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="section-title">Activity feed</h2>

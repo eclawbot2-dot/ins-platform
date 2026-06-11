@@ -54,7 +54,23 @@ export default async function PortalInvoicesPage() {
                 const balance = toNum(i.amount) - toNum(i.paidAmount);
                 return (
                   <tr key={i.id}>
-                    <td className="font-medium text-slate-800">{i.invoiceNumber}</td>
+                    <td className="font-medium text-slate-800">
+                      {i.invoiceNumber}
+                      {i.xeroPaymentUrl && i.status !== "PAID" ? (
+                        // Mobile-visible Pay-now affordance — the dedicated
+                        // right-hand column sits off-screen at 390px until
+                        // the table is scrolled, so surface the same Xero
+                        // link in the always-visible first column.
+                        <a
+                          href={i.xeroPaymentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-primary btn-sm mt-1 flex w-fit sm:hidden"
+                        >
+                          Pay now <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : null}
+                    </td>
                     <td>{i.policy?.policyNumber ?? "—"}</td>
                     <td>{fmtDate(i.issueDate)}</td>
                     <td>{fmtDate(i.dueDate)}</td>
@@ -71,7 +87,7 @@ export default async function PortalInvoicesPage() {
                           href={i.xeroPaymentUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="btn-primary btn-sm"
+                          className="btn-primary btn-sm hidden sm:inline-flex"
                         >
                           Pay now <ExternalLink className="h-3 w-3" />
                         </a>

@@ -71,7 +71,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div className="space-y-6">
           <div className="card-pad">
             <h2 className="section-title mb-3">Details</h2>

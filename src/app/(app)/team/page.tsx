@@ -92,7 +92,7 @@ export default async function TeamPage() {
               </div>
 
               {isAdmin ? (
-                <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3 lg:grid-cols-3">
+                <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 lg:grid-cols-3">
                   <form action={updateUser.bind(null, u.id)} className="flex flex-wrap items-end gap-2">
                     <Field label="Name">
                       <input name="name" defaultValue={u.name} className="input w-36" />

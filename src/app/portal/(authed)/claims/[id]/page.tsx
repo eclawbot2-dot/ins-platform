@@ -41,7 +41,7 @@ export default async function PortalClaimDetailPage({ params }: { params: Promis
         <Badge tone={claimStatusTone(claim.status)}>{CLAIM_STATUS_LABELS[claim.status]}</Badge>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="card-pad">
           <h2 className="section-title mb-3">Details</h2>
           <dl className="grid grid-cols-2 gap-3">

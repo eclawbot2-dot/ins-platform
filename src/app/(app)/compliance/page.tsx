@@ -107,7 +107,7 @@ export default async function CompliancePage() {
                   </div>
                 </div>
 
-                <div className="mt-3 grid gap-4 lg:grid-cols-2">
+                <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <div>
                     <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
                       <span className="flex items-center gap-1 font-semibold">
@@ -142,7 +142,7 @@ export default async function CompliancePage() {
                     ) : null}
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <form action={addCeCredit.bind(null, l.id)} className="space-y-2 rounded-lg border border-slate-200 p-3">
                       <div className="text-xs font-semibold text-slate-600">Record CE credit</div>
                       <input name="courseName" required placeholder="Course name" className="input" />

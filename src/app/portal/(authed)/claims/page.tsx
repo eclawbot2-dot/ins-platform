@@ -36,7 +36,7 @@ export default async function PortalClaimsPage() {
           your agency team will take it from there.
         </div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 gap-3">
           {claims.map((c) => (
             <Link key={c.id} href={`/portal/claims/${c.id}`} className="card-pad transition hover:border-navy-300 hover:shadow">
               <div className="flex flex-wrap items-start justify-between gap-2">

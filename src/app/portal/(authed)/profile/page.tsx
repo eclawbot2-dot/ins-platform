@@ -35,7 +35,7 @@ export default async function PortalProfilePage() {
         </p>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="card-pad">
           <h2 className="section-title mb-3">On file with the agency</h2>
           <dl className="grid grid-cols-2 gap-3">

@@ -81,7 +81,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Left column: profile + contacts */}
         <div className="space-y-6">
           <div className="card-pad">
@@ -277,7 +277,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             </div>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="card-pad">
               <h2 className="section-title mb-3">Claims ({client.claims.length})</h2>
               <ul className="space-y-2">

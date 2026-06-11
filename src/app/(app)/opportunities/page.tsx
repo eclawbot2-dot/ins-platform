@@ -47,7 +47,7 @@ export default async function OpportunitiesPage() {
         <StatCard label="Win rate" value={rate == null ? "—" : `${rate}%`} sub="Bound vs lost, all time" />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {STAGE_ORDER.map((stage) => {
           const stageOpps = opps.filter((o) => o.stage === stage);
           return (

@@ -27,7 +27,7 @@ export default async function SettingsPage() {
     <>
       <PageHeader title="Settings" description="Agency profile, users, integrations, templates, and audit." />
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {SECTIONS.map((s) => (
           <Link key={s.href} href={s.href} className="card-pad transition hover:shadow-md">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">

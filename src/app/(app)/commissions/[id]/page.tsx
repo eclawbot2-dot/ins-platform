@@ -139,7 +139,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
         </table>
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="card-pad">
           <h2 className="section-title mb-3">
             <Plus className="mr-1 inline h-4 w-4" /> Add line

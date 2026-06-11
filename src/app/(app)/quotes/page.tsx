@@ -51,7 +51,7 @@ export default async function QuotesPage({
           </Link>
         }
       />
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 flex flex-wrap gap-2">
         <Link href="/quotes" className={`btn btn-sm ${!statusFilter ? "border-navy-300 bg-navy-50" : ""}`}>
           All
         </Link>
