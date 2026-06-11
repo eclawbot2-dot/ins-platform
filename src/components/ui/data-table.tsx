@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { SortableHeader, ariaSort } from "@/components/ui/sortable";
-import { buildSortHref, type SortState } from "@/lib/sort";
+import { SortableHeader } from "@/components/ui/sortable";
+import { ariaSort, buildSortHref, type SortState } from "@/lib/sort";
 
 export type Column<T> = {
   key: string;

@@ -10,9 +10,9 @@
 
 import { ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { SortableHeader, ariaSort, useSortableData } from "@/components/ui/sortable";
+import { SortableHeader, useSortableData } from "@/components/ui/sortable";
 import type { BadgeTone } from "@/lib/labels";
-import type { SortAccessor } from "@/lib/sort";
+import { ariaSort, type SortAccessor } from "@/lib/sort";
 
 export type PortalInvoiceRow = {
   id: string;

@@ -69,11 +69,6 @@ export function SortableHeader({
   );
 }
 
-/** aria-sort value for the <th> that hosts a SortableHeader. */
-export function ariaSort(active: boolean, direction: SortDirection): "ascending" | "descending" | undefined {
-  return active ? (direction === "asc" ? "ascending" : "descending") : undefined;
-}
-
 export function useSortableData<T>(
   rows: readonly T[],
   accessors: Record<string, SortAccessor<T>>,

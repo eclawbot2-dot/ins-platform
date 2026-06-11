@@ -76,6 +76,11 @@ export function nextDirection(active: boolean, current: SortDirection): SortDire
   return active && current === "asc" ? "desc" : "asc";
 }
 
+/** aria-sort value for a <th> hosting a SortableHeader. */
+export function ariaSort(active: boolean, direction: SortDirection): "ascending" | "descending" | undefined {
+  return active ? (direction === "asc" ? "ascending" : "descending") : undefined;
+}
+
 /**
  * Build the href for a sortable header link. Preserves the other query
  * params (search/filters), resets pagination, toggles direction when

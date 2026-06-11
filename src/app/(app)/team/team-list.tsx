@@ -8,8 +8,8 @@
  */
 
 import { Badge } from "@/components/ui/badge";
-import { SortableHeader, ariaSort, useSortableData } from "@/components/ui/sortable";
-import type { SortAccessor } from "@/lib/sort";
+import { SortableHeader, useSortableData } from "@/components/ui/sortable";
+import { ariaSort, type SortAccessor } from "@/lib/sort";
 
 export type TeamRow = {
   id: string;

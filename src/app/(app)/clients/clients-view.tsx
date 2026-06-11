@@ -16,9 +16,9 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { SortableHeader, ariaSort, useSortableData } from "@/components/ui/sortable";
+import { SortableHeader, useSortableData } from "@/components/ui/sortable";
 import { ViewToggleButtons, useViewMode } from "@/components/ui/view-toggle";
-import type { SortAccessor } from "@/lib/sort";
+import { ariaSort, type SortAccessor } from "@/lib/sort";
 
 export type ClientRow = {
   id: string;
