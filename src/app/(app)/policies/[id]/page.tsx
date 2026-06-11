@@ -104,12 +104,12 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
             <h2 className="section-title mb-3">Policy details</h2>
             <dl className="grid grid-cols-2 gap-3 md:grid-cols-3">
               <DetailItem label="Client">
-                <Link href={`/clients/${policy.client.id}`} className="text-indigo-700 hover:underline">
+                <Link href={`/clients/${policy.client.id}`} className="text-navy-700 hover:underline">
                   {policy.client.name}
                 </Link>
               </DetailItem>
               <DetailItem label="Carrier">
-                <Link href={`/carriers/${policy.carrier.id}`} className="text-indigo-700 hover:underline">
+                <Link href={`/carriers/${policy.carrier.id}`} className="text-navy-700 hover:underline">
                   {policy.carrier.name}
                 </Link>
               </DetailItem>
@@ -127,7 +127,7 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
               <DetailItem label="Bound at">{policy.boundAt ? fmtDate(policy.boundAt) : "—"}</DetailItem>
               {policy.renewalOf ? (
                 <DetailItem label="Renewal of">
-                  <Link href={`/policies/${policy.renewalOf.id}`} className="text-indigo-700 hover:underline">
+                  <Link href={`/policies/${policy.renewalOf.id}`} className="text-navy-700 hover:underline">
                     {policy.renewalOf.policyNumber}
                   </Link>
                 </DetailItem>
@@ -135,7 +135,7 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
               {policy.renewedBy.length > 0 ? (
                 <DetailItem label="Renewed by">
                   {policy.renewedBy.map((r) => (
-                    <Link key={r.id} href={`/policies/${r.id}`} className="text-indigo-700 hover:underline">
+                    <Link key={r.id} href={`/policies/${r.id}`} className="text-navy-700 hover:underline">
                       {r.policyNumber}
                     </Link>
                   ))}
@@ -280,7 +280,7 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
             <ul className="space-y-2">
               {policy.claims.map((c) => (
                 <li key={c.id} className="flex items-center justify-between text-sm">
-                  <Link href={`/claims/${c.id}`} className="font-medium text-indigo-700 hover:underline">
+                  <Link href={`/claims/${c.id}`} className="font-medium text-navy-700 hover:underline">
                     {c.claimNumber}
                   </Link>
                   <Badge tone={claimStatusTone(c.status)}>{CLAIM_STATUS_LABELS[c.status]}</Badge>
@@ -288,7 +288,7 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
               ))}
               {policy.claims.length === 0 ? <li className="text-sm text-slate-400">No claims.</li> : null}
             </ul>
-            <Link href={`/claims/new?policyId=${policy.id}`} className="mt-3 inline-block text-xs text-indigo-700 hover:underline">
+            <Link href={`/claims/new?policyId=${policy.id}`} className="mt-3 inline-block text-xs text-navy-700 hover:underline">
               File FNOL →
             </Link>
           </div>
@@ -298,7 +298,7 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
             <ul className="space-y-2">
               {policy.invoices.map((inv) => (
                 <li key={inv.id} className="flex items-center justify-between text-sm">
-                  <Link href={`/accounting/invoices/${inv.id}`} className="font-medium text-indigo-700 hover:underline">
+                  <Link href={`/accounting/invoices/${inv.id}`} className="font-medium text-navy-700 hover:underline">
                     {inv.invoiceNumber}
                   </Link>
                   <span className="text-xs text-slate-500">{fmtMoneyCents(inv.amount)}</span>
@@ -307,7 +307,7 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
               {policy.invoices.length === 0 ? <li className="text-sm text-slate-400">No invoices.</li> : null}
             </ul>
             {policy.billingType === "AGENCY_BILL" ? (
-              <Link href={`/accounting/invoices/new?policyId=${policy.id}`} className="mt-3 inline-block text-xs text-indigo-700 hover:underline">
+              <Link href={`/accounting/invoices/new?policyId=${policy.id}`} className="mt-3 inline-block text-xs text-navy-700 hover:underline">
                 Create agency-bill invoice →
               </Link>
             ) : null}
@@ -318,7 +318,7 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
             <ul className="space-y-2">
               {policy.certificates.map((c) => (
                 <li key={c.id} className="flex items-center justify-between text-sm">
-                  <Link href={`/certificates/${c.id}`} className="font-medium text-indigo-700 hover:underline">
+                  <Link href={`/certificates/${c.id}`} className="font-medium text-navy-700 hover:underline">
                     {c.certNumber}
                   </Link>
                   <span className="text-xs text-slate-500">{c.holder.name}</span>
@@ -326,7 +326,7 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
               ))}
               {policy.certificates.length === 0 ? <li className="text-sm text-slate-400">No certificates.</li> : null}
             </ul>
-            <Link href={`/certificates/new?policyId=${policy.id}`} className="mt-3 inline-block text-xs text-indigo-700 hover:underline">
+            <Link href={`/certificates/new?policyId=${policy.id}`} className="mt-3 inline-block text-xs text-navy-700 hover:underline">
               Issue COI →
             </Link>
           </div>

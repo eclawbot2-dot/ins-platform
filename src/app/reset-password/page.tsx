@@ -33,7 +33,7 @@ export default async function ResetPasswordPage({
           {!token ? (
             <p className="text-sm text-red-600">
               Missing reset token. Use the link from your email, or{" "}
-              <Link href="/forgot-password" className="text-indigo-700 underline">
+              <Link href="/forgot-password" className="text-navy-700 underline">
                 request a new one
               </Link>
               .

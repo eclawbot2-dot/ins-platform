@@ -182,11 +182,11 @@ export default async function MarketingPage() {
                   <td className="font-medium">{r.referrerName}</td>
                   <td>
                     {r.client ? (
-                      <Link href={`/clients/${r.client.id}`} className="text-indigo-700 hover:underline">
+                      <Link href={`/clients/${r.client.id}`} className="text-navy-700 hover:underline">
                         {r.client.name}
                       </Link>
                     ) : r.lead ? (
-                      <Link href={`/leads/${r.lead.id}`} className="text-indigo-700 hover:underline">
+                      <Link href={`/leads/${r.lead.id}`} className="text-navy-700 hover:underline">
                         {r.lead.firstName} {r.lead.lastName} (lead)
                       </Link>
                     ) : (

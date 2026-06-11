@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { createPortalInvite } from "@/lib/portal-invite";
 import { fStr, fStrOpt, fDate, fEnum, fBool } from "@/lib/form";
 import type { ClientStatus, ClientType, ActivityType } from "@prisma/client";
 
@@ -112,4 +113,56 @@ export async function addClientTask(clientId: string, formData: FormData) {
   });
   revalidatePath(`/clients/${clientId}`);
   redirect(`/clients/${clientId}?toast=${encodeURIComponent("Task created")}`);
+}
+
+// ── Client portal access ──────────────────────────────────────────────
+
+export async function invitePortalUser(clientId: string, formData: FormData) {
+  const session = await requireSession();
+  const email = fStr(formData, "email");
+  const result = await createPortalInvite(clientId, email, session.userId);
+  if (!result.ok) {
+    redirect(`/clients/${clientId}?toastError=${encodeURIComponent(result.error)}`);
+  }
+  await audit({ userId: session.userId, action: "PORTAL_INVITE_SEND", entityType: "Client", entityId: clientId, detail: email });
+  revalidatePath(`/clients/${clientId}`);
+  redirect(`/clients/${clientId}?toast=${encodeURIComponent(`Portal invitation sent to ${email.trim().toLowerCase()}`)}`);
+}
+
+export async function revokePortalInvite(clientId: string, inviteId: string) {
+  const session = await requireSession();
+  // Scope by clientId so a forged inviteId can't touch another client's invite.
+  await prisma.portalInvite.updateMany({
+    where: { id: inviteId, clientId, usedAt: null, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  await audit({ userId: session.userId, action: "PORTAL_INVITE_REVOKE", entityType: "Client", entityId: clientId });
+  revalidatePath(`/clients/${clientId}`);
+  redirect(`/clients/${clientId}?toast=${encodeURIComponent("Invitation revoked")}`);
+}
+
+export async function resendPortalInvite(clientId: string, inviteId: string) {
+  const session = await requireSession();
+  const invite = await prisma.portalInvite.findFirst({ where: { id: inviteId, clientId } });
+  if (!invite) redirect(`/clients/${clientId}?toastError=${encodeURIComponent("Invitation not found")}`);
+  // Resend = revoke the old token and issue a fresh 7-day one.
+  const result = await createPortalInvite(clientId, invite.email, session.userId);
+  if (!result.ok) {
+    redirect(`/clients/${clientId}?toastError=${encodeURIComponent(result.error)}`);
+  }
+  await audit({ userId: session.userId, action: "PORTAL_INVITE_RESEND", entityType: "Client", entityId: clientId, detail: invite.email });
+  revalidatePath(`/clients/${clientId}`);
+  redirect(`/clients/${clientId}?toast=${encodeURIComponent(`Invitation re-sent to ${invite.email}`)}`);
+}
+
+export async function disablePortalUser(clientId: string, userId: string) {
+  const session = await requireSession();
+  // Scope by clientId + role so only this client's portal logins are touchable.
+  await prisma.user.updateMany({
+    where: { id: userId, clientId, role: "CLIENT" },
+    data: { active: false, sessionsRevokedAt: new Date() },
+  });
+  await audit({ userId: session.userId, action: "PORTAL_USER_DISABLE", entityType: "Client", entityId: clientId });
+  revalidatePath(`/clients/${clientId}`);
+  redirect(`/clients/${clientId}?toast=${encodeURIComponent("Portal access disabled")}`);
 }

@@ -34,11 +34,11 @@ export function NavLinks({ size = "md", onNavigate }: { size?: "md" | "lg"; onNa
                       "flex items-center rounded-lg px-2 font-medium transition",
                       size === "lg" ? "gap-3 py-3 text-sm" : "gap-2.5 py-1.5 text-[13px]",
                       active
-                        ? "bg-indigo-500/20 text-white"
+                        ? "bg-navy-500/20 text-white"
                         : "text-slate-300 hover:bg-white/10 hover:text-white",
                     )}
                   >
-                    <item.icon className={clsx("h-4 w-4", active ? "text-indigo-300" : "text-slate-400")} />
+                    <item.icon className={clsx("h-4 w-4", active ? "text-navy-300" : "text-slate-400")} />
                     {item.label}
                   </Link>
                 </li>

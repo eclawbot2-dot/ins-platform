@@ -20,6 +20,7 @@ enum Role {
   ADMIN
   PRODUCER
   CSR
+  CLIENT
 }
 
 enum ClientType {
@@ -239,10 +240,14 @@ model User {
   defaultSplitPct   Decimal   @default(100) @db.Decimal(5, 2)
   lastLoginAt       DateTime?
   sessionsRevokedAt DateTime?
+  // Set only for role CLIENT — links a portal login to its Client record.
+  clientId          String?
+  client            Client?   @relation("ClientPortalUsers", fields: [clientId], references: [id], onDelete: SetNull)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
   resetTokens        PasswordResetToken[]
+  portalInvites      PortalInvite[]
   licenses           License[]
   producedPolicies   Policy[]             @relation("PolicyProducer")
   servicedPolicies   Policy[]             @relation("PolicyCsr")
@@ -272,6 +277,24 @@ model PasswordResetToken {
   createdAt DateTime  @default(now())
 }
 
+// Client-portal invitation. Like PasswordResetToken, only the SHA-256
+// hash of the raw token is stored. 7-day expiry, single-use, revocable.
+model PortalInvite {
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  email       String
+  clientId    String
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  expiresAt   DateTime
+  usedAt      DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([clientId])
+}
+
 model AuditLog {
   id         String   @id @default(cuid())
   userId     String?
@@ -292,7 +315,7 @@ model AuditLog {
 
 model AgencyProfile {
   id            String   @id @default("agency")
-  name          String   @default("Ins Platform Agency")
+  name          String   @default("Tabor Agency")
   addressLine1  String?
   addressLine2  String?
   city          String?
@@ -376,6 +399,8 @@ model Client {
   tasks         Task[]
   certificates  Certificate[]
   referrals     Referral[]
+  portalUsers   User[]         @relation("ClientPortalUsers")
+  portalInvites PortalInvite[]
 
   @@index([name])
   @@index([status])
@@ -799,6 +824,9 @@ model Document {
   mimeType     String
   sizeBytes    Int
   docType      DocType  @default(OTHER)
+  // Staff opt-in: only documents explicitly marked visible appear in
+  // (and are downloadable from) the client portal.
+  visibleToClient Boolean @default(false)
   clientId     String?
   client       Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
   policyId     String?

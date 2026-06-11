@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BRAND } from "@/lib/brand";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PrintButton } from "@/components/ui/print-button";
@@ -58,7 +59,7 @@ export default async function CertificateDetailPage({ params }: { params: Promis
         <div className="mb-3 grid grid-cols-2 gap-3">
           <div className="border border-slate-300 p-2">
             <div className="text-[10px] font-bold uppercase text-slate-500">Producer</div>
-            <div className="font-semibold">{agency?.name ?? "Ins Platform Agency"}</div>
+            <div className="font-semibold">{agency?.name ?? BRAND.name}</div>
             <div>{agency?.addressLine1}</div>
             <div>
               {[agency?.city, agency?.state, agency?.zip].filter(Boolean).join(", ")}

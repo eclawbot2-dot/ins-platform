@@ -1,12 +1,18 @@
-# RUNBOOK — ins-platform
+# RUNBOOK — ins-platform (Tabor Agency)
 
 Operations guide for the host running https://ins.jahdev.com.
 
 ## Topology
 
 ```
-Internet → Cloudflare tunnel (ins.jahdev.com) → localhost:3220 (Next.js) → PostgreSQL 16 (127.0.0.1:5432/ins)
+Internet → Cloudflare tunnel ─ ins.jahdev.com ──────────┐
+                             └ portal.taboragency.com ──┤→ localhost:3220 (Next.js) → PostgreSQL 16 (127.0.0.1:5432/ins)
 ```
+
+One Next.js process serves BOTH hostnames (staff app + client portal at
+`/portal`). `portal.taboragency.com` goes live when taboragency.com NS cuts
+over to Cloudflare; the tunnel ingress already exists. Client-facing email
+links are built from `PORTAL_URL`.
 
 ## Services (Windows)
 
@@ -36,6 +42,7 @@ npm run build && npm run start
 | `EMAIL_TRANSPORT` | no | `log` (default, no sends) or `resend` |
 | `RESEND_API_KEY` | for resend | Send-only key; **verify ins.jahdev.com in Resend first** |
 | `EMAIL_FROM` | no | `no-reply@ins.jahdev.com` — never braetr.com |
+| `PORTAL_URL` | no | Base URL for client-facing links (portal invites); default `https://ins.jahdev.com`, switch to `https://portal.taboragency.com` after NS cutover |
 | `LEAD_INTAKE_KEY` | yes | Shared secret for `POST /api/public/leads` |
 | `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` | for Xero | See Xero setup below |
 | `GOOGLE_WORKSPACE_SA_KEY_FILE` | no | Default `C:/Users/bot/secrets/ins-workspace-sa.json`; app degrades cleanly when absent |
@@ -90,8 +97,22 @@ Until then every email is logged with `email (log-only transport)`.
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}" http://localhost:3220/login         # expect 200
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3220/portal/login  # expect 200
 curl -s -o /dev/null -w "%{http_code}" http://localhost:3220/dashboard     # expect 307 → /login when logged out
+node scripts/smoke.mjs                                                     # full sweep incl. portal + role wall
 ```
+
+## Client portal operations
+
+- **Invite a client:** staff client page → *Portal access* → enter email →
+  **Invite to portal**. Token is single-use, 7-day expiry; *Resend* issues a
+  fresh token (old one is revoked), *Revoke* kills it.
+- **Disable access:** *Portal access* → **Disable** (deactivates the CLIENT
+  user and revokes live sessions immediately).
+- **Share a document:** Documents → *Portal* column → toggle **Shared**
+  (only `visibleToClient` documents appear/download in the portal).
+- **Demo portal login:** `client@taboragency.com` / `Client2026!`
+  (linked to Harborview Builders LLC by the seed).
 
 ## Troubleshooting
 

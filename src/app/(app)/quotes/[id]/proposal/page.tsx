@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BRAND } from "@/lib/brand";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PrintButton } from "@/components/ui/print-button";
@@ -44,7 +45,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
       <div className="print-page card bg-white p-10">
         <div className="mb-8 flex items-start justify-between border-b border-slate-200 pb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">{agency?.name ?? "Ins Platform Agency"}</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{agency?.name ?? BRAND.name}</h1>
             <p className="text-sm text-slate-500">
               {[agency?.addressLine1, agency?.city, agency?.state, agency?.zip].filter(Boolean).join(", ")}
               {agency?.phone ? ` · ${agency.phone}` : ""}

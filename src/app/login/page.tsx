@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Shield } from "lucide-react";
+import { BRAND } from "@/lib/brand";
 import { isSafeRedirect } from "@/lib/redirect";
 
 function LoginForm() {
@@ -62,7 +63,7 @@ function LoginForm() {
         {busy ? "Signing in…" : "Sign in"}
       </button>
       <p className="text-center text-sm">
-        <Link href="/forgot-password" className="text-indigo-700 hover:underline">
+        <Link href="/forgot-password" className="text-navy-700 hover:underline">
           Forgot password?
         </Link>
       </p>
@@ -75,10 +76,10 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex items-center justify-center gap-2">
-          <Shield className="h-7 w-7 text-indigo-600" />
+          <Shield className="h-7 w-7 text-navy-600" />
           <div>
-            <div className="text-lg font-bold text-slate-900">Ins Platform</div>
-            <div className="text-xs text-slate-500">Agency Management System</div>
+            <div className="text-lg font-bold text-slate-900">{BRAND.name}</div>
+            <div className="text-xs text-slate-500">Staff sign-in · {BRAND.staffTagline}</div>
           </div>
         </div>
         <div className="card-pad">

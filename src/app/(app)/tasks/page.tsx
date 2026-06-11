@@ -39,7 +39,7 @@ export default async function TasksPage({
         renewal: { select: { id: true } },
       },
     }),
-    prisma.user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { active: true, role: { not: "CLIENT" } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     getWorkspaceSummary(),
   ]);
 
@@ -50,14 +50,14 @@ export default async function TasksPage({
       <PageHeader title="Tasks" description="Follow-ups, renewal work, claim chasers." />
 
       <div className="mb-4 flex gap-2">
-        <Link href="/tasks" className={`btn btn-sm ${!statusFilter ? "border-indigo-300 bg-indigo-50" : ""}`}>
+        <Link href="/tasks" className={`btn btn-sm ${!statusFilter ? "border-navy-300 bg-navy-50" : ""}`}>
           Open
         </Link>
         {STATUSES.map((s) => (
           <Link
             key={s}
             href={`/tasks?status=${s}`}
-            className={`btn btn-sm ${statusFilter === s ? "border-indigo-300 bg-indigo-50" : ""}`}
+            className={`btn btn-sm ${statusFilter === s ? "border-navy-300 bg-navy-50" : ""}`}
           >
             {TASK_STATUS_LABELS[s]}
           </Link>
@@ -99,7 +99,7 @@ export default async function TasksPage({
                   </td>
                   <td>
                     {link ? (
-                      <Link href={link.href} className="text-indigo-700 hover:underline">
+                      <Link href={link.href} className="text-navy-700 hover:underline">
                         {link.label}
                       </Link>
                     ) : (

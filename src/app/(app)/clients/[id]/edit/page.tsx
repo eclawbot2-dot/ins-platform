@@ -11,7 +11,7 @@ export default async function EditClientPage({ params }: { params: Promise<{ id:
   const { id } = await params;
   const [client, users] = await Promise.all([
     prisma.client.findUnique({ where: { id } }),
-    prisma.user.findMany({ where: { active: true }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { active: true, role: { not: "CLIENT" } }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }),
   ]);
   if (!client) notFound();
   return (

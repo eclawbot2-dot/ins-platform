@@ -3,8 +3,9 @@
  *
  *   npm run db:seed   (or npm run setup)
  *
- * Wipes and re-creates all rows (dev-only data). Admin login:
- *   ericbbowman2@gmail.com / Ins2026!
+ * Wipes and re-creates all rows (dev-only data). Logins:
+ *   staff admin:   ericbbowman2@gmail.com / Ins2026!
+ *   client portal: client@taboragency.com / Client2026!
  */
 
 import "dotenv/config";
@@ -45,6 +46,7 @@ async function main() {
     prisma.notification.deleteMany(),
     prisma.auditLog.deleteMany(),
     prisma.passwordResetToken.deleteMany(),
+    prisma.portalInvite.deleteMany(),
     prisma.syncCursor.deleteMany(),
     prisma.syncJob.deleteMany(),
     prisma.integrationConnection.deleteMany(),
@@ -109,14 +111,14 @@ async function main() {
   await prisma.agencyProfile.create({
     data: {
       id: "agency",
-      name: "Lowcountry Insurance Group",
+      name: "Tabor Agency",
       addressLine1: "1310 Meeting Street, Suite 200",
       city: "Charleston",
       state: "SC",
       zip: "29405",
       phone: "843-555-0100",
-      email: "office@ins.jahdev.com",
-      website: "https://ins-website-sandy.vercel.app",
+      email: "office@taboragency.com",
+      website: "https://taboragency.com",
       licenseNumber: "SC-AGY-204477",
     },
   });
@@ -126,19 +128,19 @@ async function main() {
         key: "renewal-notice",
         name: "Renewal notice",
         subject: "Your {{lineOfBusiness}} policy renews on {{expirationDate}}",
-        body: "Hi {{clientName}},\n\nYour policy {{policyNumber}} with {{carrierName}} is coming up for renewal on {{expirationDate}}. We are reviewing the market to make sure you have the best fit.\n\n— {{producerName}}, Lowcountry Insurance Group",
+        body: "Hi {{clientName}},\n\nYour policy {{policyNumber}} with {{carrierName}} is coming up for renewal on {{expirationDate}}. We are reviewing the market to make sure you have the best fit.\n\n— {{producerName}}, Tabor Agency",
       },
       {
         key: "new-client-welcome",
         name: "New client welcome",
-        subject: "Welcome to Lowcountry Insurance Group",
-        body: "Hi {{clientName}},\n\nThanks for trusting us with your insurance. Your service team is {{producerName}} (producer) and {{csrName}} (account manager).\n\n— Lowcountry Insurance Group",
+        subject: "Welcome to Tabor Agency",
+        body: "Hi {{clientName}},\n\nThanks for trusting us with your insurance. Your service team is {{producerName}} (producer) and {{csrName}} (account manager).\n\n— Tabor Agency",
       },
       {
         key: "coi-delivery",
         name: "Certificate delivery",
         subject: "Certificate of insurance {{certNumber}}",
-        body: "Attached is certificate {{certNumber}} for {{holderName}}.\n\n— Lowcountry Insurance Group",
+        body: "Attached is certificate {{certNumber}} for {{holderName}}.\n\n— Tabor Agency",
       },
     ],
   });
@@ -275,6 +277,21 @@ async function main() {
     });
     clients.push(client);
   }
+
+  // ── Client-portal demo login ───────────────────────────────────────
+  // Linked to Harborview Builders LLC (clients[1]) — that client has
+  // policies, claims, invoices and documents, so /portal renders fully.
+  const pwClient = await bcrypt.hash("Client2026!", 12);
+  await prisma.user.create({
+    data: {
+      email: "client@taboragency.com",
+      name: "Harborview Builders LLC",
+      password: pwClient,
+      role: "CLIENT",
+      clientId: clients[1]!.id,
+      phone: "843-555-0201",
+    },
+  });
 
   // ── Policies (40) ──────────────────────────────────────────────────
   // [clientIdx, carrier, lob, premium, status, effMonthsAgo, isNew, billing, producer]
@@ -774,6 +791,9 @@ async function main() {
         amount,
         paidAmount: round2(amount * paidFrac),
         paidAt: status === "PAID" ? daysFromNow(dueOffset + 10) : null,
+        // Demo Xero "Pay now" link on open invoices — the portal's only
+        // online-payment path (Xero is the accounting system of record).
+        xeroPaymentUrl: status === "SENT" || status === "PARTIAL" ? `https://in.xero.com/pay/demo-${i + 1}` : null,
         lines: { create: [{ description: `Premium — policy ${p.policyNumber}`, quantity: 1, unitAmount: amount, amount }] },
       },
     });
@@ -902,11 +922,15 @@ async function main() {
   // ── Documents (small real files so download works) ─────────────────
   const uploadsDir = path.join(process.cwd(), "uploads");
   await mkdir(uploadsDir, { recursive: true });
-  const docSpecs: Array<[string, string, "POLICY_DOC" | "LOSS_RUN", number, string | null]> = [
-    ["simmons-ho-declarations.txt", "Sample declarations page — Travelers homeowners HO-TRA series.\nSeed data for ins-platform demo.", "POLICY_DOC", 0, "HO-TRA"],
-    ["coastal-hvac-loss-runs.txt", "3-year loss run summary — Coastal HVAC Services.\nNo open losses as of last carrier report.\nSeed data for ins-platform demo.", "LOSS_RUN", 7, "GL-CNA"],
+  // [fileName, content, docType, clientIdx, policyNumber prefix, visibleToClient]
+  const docSpecs: Array<[string, string, "POLICY_DOC" | "LOSS_RUN" | "CERTIFICATE", number, string | null, boolean]> = [
+    ["simmons-ho-declarations.txt", "Sample declarations page — Travelers homeowners HO-TRA series.\nSeed data for ins-platform demo.", "POLICY_DOC", 0, "HO-TRA", false],
+    ["coastal-hvac-loss-runs.txt", "3-year loss run summary — Coastal HVAC Services.\nNo open losses as of last carrier report.\nSeed data for ins-platform demo.", "LOSS_RUN", 7, "GL-CNA", false],
+    // Shared to the client portal (Harborview Builders demo login).
+    ["harborview-gl-declarations.txt", "General liability declarations — Harborview Builders LLC.\nShared with the client via the Tabor Agency portal.\nSeed data for ins-platform demo.", "POLICY_DOC", 1, "GL-HAR", true],
+    ["harborview-coi-meridian.txt", "Certificate of insurance issued to Meridian General Contractors for Harborview Builders LLC.\nSeed data for ins-platform demo.", "CERTIFICATE", 1, "GL-HAR", true],
   ];
-  for (const [fileName, content, docType, clientIdx, pnPrefix] of docSpecs) {
+  for (const [fileName, content, docType, clientIdx, pnPrefix, visibleToClient] of docSpecs) {
     const stored = `seed-${fileName}`;
     await writeFile(path.join(uploadsDir, stored), content, "utf8");
     const policy = pnPrefix ? policyIds.find((p) => p.policyNumber.startsWith(pnPrefix)) : null;
@@ -919,6 +943,7 @@ async function main() {
         docType,
         clientId: clients[clientIdx]!.id,
         policyId: policy?.id ?? null,
+        visibleToClient,
         uploadedById: molly.id,
       },
     });
@@ -936,6 +961,7 @@ async function main() {
     `${counts[8]} licenses, ${counts[9]} campaigns, ${counts[10]} invoices, ${counts[11]} certificates.`,
   );
   console.log("Admin login: ericbbowman2@gmail.com / Ins2026!");
+  console.log("Portal login: client@taboragency.com / Client2026! (Harborview Builders LLC)");
 }
 
 main()

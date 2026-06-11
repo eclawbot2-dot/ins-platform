@@ -52,11 +52,11 @@ export default async function QuotesPage({
         }
       />
       <div className="mb-4 flex gap-2">
-        <Link href="/quotes" className={`btn btn-sm ${!statusFilter ? "border-indigo-300 bg-indigo-50" : ""}`}>
+        <Link href="/quotes" className={`btn btn-sm ${!statusFilter ? "border-navy-300 bg-navy-50" : ""}`}>
           All
         </Link>
         {statuses.map((s) => (
-          <Link key={s} href={`/quotes?status=${s}`} className={`btn btn-sm ${statusFilter === s ? "border-indigo-300 bg-indigo-50" : ""}`}>
+          <Link key={s} href={`/quotes?status=${s}`} className={`btn btn-sm ${statusFilter === s ? "border-navy-300 bg-navy-50" : ""}`}>
             {s}
           </Link>
         ))}

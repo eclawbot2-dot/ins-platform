@@ -65,11 +65,11 @@ export default async function QuoteRequestDetailPage({ params }: { params: Promi
         <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <DetailItem label="For">
             {qr.client ? (
-              <Link href={`/clients/${qr.client.id}`} className="text-indigo-700 hover:underline">
+              <Link href={`/clients/${qr.client.id}`} className="text-navy-700 hover:underline">
                 {qr.client.name}
               </Link>
             ) : qr.lead ? (
-              <Link href={`/leads/${qr.lead.id}`} className="text-indigo-700 hover:underline">
+              <Link href={`/leads/${qr.lead.id}`} className="text-navy-700 hover:underline">
                 {qr.lead.firstName} {qr.lead.lastName} (lead)
               </Link>
             ) : (
@@ -113,7 +113,7 @@ export default async function QuoteRequestDetailPage({ params }: { params: Promi
                   <td className="max-w-xs truncate text-xs text-slate-500">{quote.coverageSummary ?? "—"}</td>
                   <td>
                     {quote.boundPolicy ? (
-                      <Link href={`/policies/${quote.boundPolicy.id}`} className="text-indigo-700 hover:underline">
+                      <Link href={`/policies/${quote.boundPolicy.id}`} className="text-navy-700 hover:underline">
                         {quote.boundPolicy.policyNumber}
                       </Link>
                     ) : qr.status !== "BOUND" && qr.status !== "LOST" ? (

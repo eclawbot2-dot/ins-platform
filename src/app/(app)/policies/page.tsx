@@ -94,7 +94,7 @@ export default async function PoliciesPage({
           ) : (
             <span>
               No policies yet.{" "}
-              <Link href="/policies/new" className="font-medium text-indigo-700 hover:underline">
+              <Link href="/policies/new" className="font-medium text-navy-700 hover:underline">
                 Create the first policy →
               </Link>
             </span>

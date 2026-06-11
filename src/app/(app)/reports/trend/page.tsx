@@ -47,12 +47,12 @@ export default async function TrendReportPage() {
               <tr key={m.month}>
                 <td className="font-medium">{m.month}</td>
                 <td className="text-right text-emerald-700">{fmtMoney(m.newPremium)}</td>
-                <td className="text-right text-indigo-700">{fmtMoney(m.renewalPremium)}</td>
+                <td className="text-right text-navy-700">{fmtMoney(m.renewalPremium)}</td>
                 <td className="text-right font-medium">{fmtMoney(m.total)}</td>
                 <td>
                   <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
                     <div className="h-full bg-emerald-500" style={{ width: `${(m.newPremium / max) * 100}%` }} />
-                    <div className="h-full bg-indigo-500" style={{ width: `${(m.renewalPremium / max) * 100}%` }} />
+                    <div className="h-full bg-navy-500" style={{ width: `${(m.renewalPremium / max) * 100}%` }} />
                   </div>
                 </td>
               </tr>
@@ -62,7 +62,7 @@ export default async function TrendReportPage() {
       </div>
       <p className="mt-2 text-xs text-slate-400">
         <span className="mr-3 inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> New business</span>
-        <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-indigo-500" /> Renewal</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-navy-500" /> Renewal</span>
       </p>
     </>
   );

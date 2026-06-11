@@ -8,6 +8,7 @@ import type {
   BillingType,
   ClaimStatus,
   ClientStatus,
+  InvoiceStatus,
   LeadStatus,
   LineOfBusiness,
   OpportunityStage,
@@ -130,6 +131,14 @@ export const APPOINTMENT_LABELS: Record<AppointmentStatus, string> = {
   NOT_APPOINTED: "Not appointed",
 };
 
+export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
+  DRAFT: "Draft",
+  SENT: "Sent",
+  PARTIAL: "Partially paid",
+  PAID: "Paid",
+  VOID: "Void",
+};
+
 /** Badge tone per status family — maps to .badge-* classes in globals.css. */
 export type BadgeTone = "green" | "blue" | "amber" | "red" | "slate" | "violet";
 
@@ -174,6 +183,16 @@ export function stageTone(s: OpportunityStage): BadgeTone {
     case "PROPOSAL": return "amber";
     case "BOUND": return "green";
     case "LOST": return "red";
+  }
+}
+
+export function invoiceStatusTone(s: InvoiceStatus): BadgeTone {
+  switch (s) {
+    case "DRAFT": return "slate";
+    case "SENT": return "blue";
+    case "PARTIAL": return "amber";
+    case "PAID": return "green";
+    case "VOID": return "red";
   }
 }
 

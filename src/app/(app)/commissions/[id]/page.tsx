@@ -96,7 +96,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
               <tr key={l.id} className={l.matchStatus === "VARIANCE" ? "bg-amber-50/60" : l.matchStatus === "UNMATCHED" ? "bg-red-50/40" : ""}>
                 <td>
                   {l.policy ? (
-                    <Link href={`/policies/${l.policy.id}`} className="font-medium text-indigo-700 hover:underline">
+                    <Link href={`/policies/${l.policy.id}`} className="font-medium text-navy-700 hover:underline">
                       {l.policyNumber}
                     </Link>
                   ) : (

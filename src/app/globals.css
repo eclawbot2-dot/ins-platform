@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+/* ── Tabor Agency palette ──────────────────────────────────────────────
+   Deep navy primary (#13294B), warm gold/brass accent, slate neutrals.
+   Registered as Tailwind colors so `bg-navy-700`, `text-gold-400`, etc.
+   work everywhere. */
+@theme {
+  --color-navy-50: #f2f5fa;
+  --color-navy-100: #e2e9f3;
+  --color-navy-200: #c3d1e5;
+  --color-navy-300: #9bb1cf;
+  --color-navy-400: #6b89b1;
+  --color-navy-500: #41608c;
+  --color-navy-600: #234069;
+  --color-navy-700: #13294b;
+  --color-navy-800: #0e203b;
+  --color-navy-900: #0a172c;
+  --color-gold-50: #fbf6e9;
+  --color-gold-100: #f5ead0;
+  --color-gold-200: #ead49d;
+  --color-gold-300: #ddbb67;
+  --color-gold-400: #cfa341;
+  --color-gold-500: #b8892d;
+  --color-gold-600: #996f23;
+  --color-gold-700: #7a571d;
+}
+
 /* ── Professional light theme ──────────────────────────────────────── */
 :root {
   --bg: #f4f6fa;
@@ -7,9 +32,10 @@
   --line: rgba(15, 23, 42, 0.09);
   --text: #0f172a;
   --muted: #64748b;
-  --accent: #4338ca; /* indigo-700 */
-  --accent-soft: #eef2ff;
-  --sidebar-bg: #101a33;
+  --accent: #13294b; /* navy-700 */
+  --accent-soft: #e2e9f3;
+  --gold: #cfa341;
+  --sidebar-bg: #0e203b;
   --sidebar-text: #cbd5e1;
 }
 
@@ -62,7 +88,7 @@ summary:focus-visible,
 }
 
 .btn-primary {
-  @apply inline-flex items-center gap-1.5 rounded-lg border border-indigo-700 bg-indigo-700 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-800 disabled:opacity-50 cursor-pointer;
+  @apply inline-flex items-center gap-1.5 rounded-lg border border-navy-700 bg-navy-700 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-navy-800 disabled:opacity-50 cursor-pointer;
 }
 
 .btn-danger {
@@ -74,7 +100,7 @@ summary:focus-visible,
 }
 
 .input {
-  @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100;
+  @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-100;
 }
 
 .label {
@@ -91,7 +117,7 @@ summary:focus-visible,
   @apply border-b border-slate-100 px-3 py-2 align-middle text-slate-700;
 }
 .table-base tbody tr:hover {
-  @apply bg-indigo-50/40;
+  @apply bg-navy-50/40;
 }
 
 .badge {

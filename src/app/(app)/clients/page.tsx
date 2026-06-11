@@ -83,7 +83,7 @@ export default async function ClientsPage({
           ) : (
             <span>
               No clients yet.{" "}
-              <Link href="/clients/new" className="font-medium text-indigo-700 hover:underline">
+              <Link href="/clients/new" className="font-medium text-navy-700 hover:underline">
                 Add your first client →
               </Link>
             </span>

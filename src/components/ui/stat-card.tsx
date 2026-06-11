@@ -33,7 +33,7 @@ export function StatCard({
         </div>
         {sub ? <div className="mt-0.5 text-xs text-slate-500">{sub}</div> : null}
       </div>
-      {Icon ? <Icon className="h-5 w-5 shrink-0 text-indigo-400" /> : null}
+      {Icon ? <Icon className="h-5 w-5 shrink-0 text-gold-400" /> : null}
     </div>
   );
   return href ? <Link href={href}>{body}</Link> : body;

@@ -191,7 +191,7 @@ export default async function CarrierDetailPage({ params }: { params: Promise<{ 
           <div className="card-pad">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="section-title">Active book — {fmtMoney(book)}</h2>
-              <Link href={`/policies?q=${encodeURIComponent(carrier.name)}`} className="text-xs text-indigo-700 hover:underline">
+              <Link href={`/policies?q=${encodeURIComponent(carrier.name)}`} className="text-xs text-navy-700 hover:underline">
                 All policies →
               </Link>
             </div>
@@ -210,7 +210,7 @@ export default async function CarrierDetailPage({ params }: { params: Promise<{ 
                 {carrier.policies.map((p) => (
                   <tr key={p.id}>
                     <td>
-                      <Link href={`/policies/${p.id}`} className="font-medium text-indigo-700 hover:underline">
+                      <Link href={`/policies/${p.id}`} className="font-medium text-navy-700 hover:underline">
                         {p.policyNumber}
                       </Link>
                     </td>
@@ -239,7 +239,7 @@ export default async function CarrierDetailPage({ params }: { params: Promise<{ 
             <ul className="space-y-2">
               {carrier.statements.map((s) => (
                 <li key={s.id} className="flex items-center justify-between text-sm">
-                  <Link href={`/commissions/${s.id}`} className="font-medium text-indigo-700 hover:underline">
+                  <Link href={`/commissions/${s.id}`} className="font-medium text-navy-700 hover:underline">
                     {s.periodLabel ?? fmtDate(s.statementDate)}
                   </Link>
                   <span className="text-xs text-slate-500">{fmtMoney(s.totalAmount)}</span>

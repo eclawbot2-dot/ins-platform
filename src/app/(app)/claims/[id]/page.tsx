@@ -38,7 +38,7 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
   });
   if (!claim) notFound();
 
-  const users = await prisma.user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+  const users = await prisma.user.findMany({ where: { active: true, role: { not: "CLIENT" } }, select: { id: true, name: true }, orderBy: { name: "asc" } });
 
   return (
     <>
@@ -77,12 +77,12 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
             <h2 className="section-title mb-3">Claim details</h2>
             <dl className="grid grid-cols-2 gap-3">
               <DetailItem label="Client">
-                <Link href={`/clients/${claim.client.id}`} className="text-indigo-700 hover:underline">
+                <Link href={`/clients/${claim.client.id}`} className="text-navy-700 hover:underline">
                   {claim.client.name}
                 </Link>
               </DetailItem>
               <DetailItem label="Policy">
-                <Link href={`/policies/${claim.policy.id}`} className="text-indigo-700 hover:underline">
+                <Link href={`/policies/${claim.policy.id}`} className="text-navy-700 hover:underline">
                   {claim.policy.policyNumber}
                 </Link>
               </DetailItem>

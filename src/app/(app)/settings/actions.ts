@@ -1,6 +1,7 @@
 "use server";
 
 import crypto from "node:crypto";
+import { BRAND } from "@/lib/brand";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -13,7 +14,7 @@ import { fStr, fStrOpt, fBool } from "@/lib/form";
 export async function updateAgencyProfile(formData: FormData) {
   const session = await requireAdmin();
   const data = {
-    name: fStr(formData, "name") || "Ins Platform Agency",
+    name: fStr(formData, "name") || BRAND.name,
     addressLine1: fStrOpt(formData, "addressLine1"),
     addressLine2: fStrOpt(formData, "addressLine2"),
     city: fStrOpt(formData, "city"),

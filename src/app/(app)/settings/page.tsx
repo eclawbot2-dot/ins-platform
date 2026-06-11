@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BRAND } from "@/lib/brand";
 import { FileTerminal, KeyRound, Mail, Plug, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
@@ -30,7 +31,7 @@ export default async function SettingsPage() {
         {SECTIONS.map((s) => (
           <Link key={s.href} href={s.href} className="card-pad transition hover:shadow-md">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <s.icon className="h-4 w-4 text-indigo-500" /> {s.title}
+              <s.icon className="h-4 w-4 text-navy-500" /> {s.title}
             </div>
             <p className="mt-1 text-xs text-slate-500">{s.description}</p>
           </Link>
@@ -43,7 +44,7 @@ export default async function SettingsPage() {
           <form action={updateAgencyProfile} className="space-y-4">
             <FormGrid>
               <Field label="Agency name" required>
-                <input name="name" defaultValue={profile?.name ?? "Ins Platform Agency"} required className="input" />
+                <input name="name" defaultValue={profile?.name ?? BRAND.name} required className="input" />
               </Field>
               <Field label="Agency license #">
                 <input name="licenseNumber" defaultValue={profile?.licenseNumber ?? ""} className="input" />
@@ -79,7 +80,7 @@ export default async function SettingsPage() {
           </form>
         ) : (
           <div className="text-sm text-slate-600">
-            <div className="font-medium text-slate-900">{profile?.name ?? "Ins Platform Agency"}</div>
+            <div className="font-medium text-slate-900">{profile?.name ?? BRAND.name}</div>
             <div>{profile?.addressLine1}</div>
             <div>{[profile?.city, profile?.state, profile?.zip].filter(Boolean).join(", ")}</div>
             <div>{profile?.phone} · {profile?.email}</div>

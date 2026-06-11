@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NewClientPage() {
   const users = await prisma.user.findMany({
-    where: { active: true },
+    where: { active: true, role: { not: "CLIENT" } },
     select: { id: true, name: true, role: true },
     orderBy: { name: "asc" },
   });

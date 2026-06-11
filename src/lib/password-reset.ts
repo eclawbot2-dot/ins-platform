@@ -11,6 +11,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { appBaseUrl } from "@/lib/app-url";
+import { BRAND } from "@/lib/brand";
 
 const TOKEN_TTL_MS = 60 * 60 * 1000;
 
@@ -40,9 +41,9 @@ export async function requestPasswordReset(emailRaw: string): Promise<RequestRes
   const url = `${appBaseUrl()}/reset-password?token=${token}`;
   await sendEmail({
     to: email,
-    subject: "Reset your Ins Platform password",
-    text: `Hi ${user.name},\n\nReset your password here (link valid for 1 hour):\n${url}\n\nIf you didn't request this, ignore this email.`,
-    html: `<p>Hi ${user.name},</p><p><a href="${url}">Reset your password</a> (link valid for 1 hour).</p><p>If you didn't request this, ignore this email.</p>`,
+    subject: `Reset your ${BRAND.name} password`,
+    text: `Hi ${user.name},\n\nReset your password here (link valid for 1 hour):\n${url}\n\nIf you didn't request this, ignore this email.\n\n— ${BRAND.legalName}`,
+    html: `<p>Hi ${user.name},</p><p><a href="${url}">Reset your password</a> (link valid for 1 hour).</p><p>If you didn't request this, ignore this email.</p><p>— ${BRAND.legalName}</p>`,
   });
 
   return { ok: true };

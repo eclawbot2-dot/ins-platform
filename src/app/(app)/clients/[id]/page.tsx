@@ -16,7 +16,17 @@ import {
 } from "@/lib/labels";
 import { fmtMoney, fmtMoneyCents, toNum } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
-import { addClientActivity, addClientTask, addContact, deleteContact } from "../actions";
+import { inviteState } from "@/lib/domain/portal-invite";
+import {
+  addClientActivity,
+  addClientTask,
+  addContact,
+  deleteContact,
+  disablePortalUser,
+  invitePortalUser,
+  resendPortalInvite,
+  revokePortalInvite,
+} from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -35,12 +45,14 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       documents: { orderBy: { createdAt: "desc" } },
       activities: { include: { user: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 25 },
       tasks: { where: { status: { in: ["OPEN", "IN_PROGRESS"] } }, orderBy: { dueDate: "asc" }, include: { assignedTo: { select: { name: true } } } },
+      portalUsers: { select: { id: true, email: true, name: true, active: true, lastLoginAt: true }, orderBy: { createdAt: "asc" } },
+      portalInvites: { orderBy: { createdAt: "desc" }, take: 10 },
     },
   });
   if (!client) notFound();
 
   const users = await prisma.user.findMany({
-    where: { active: true },
+    where: { active: true, role: { not: "CLIENT" } },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
@@ -130,6 +142,65 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </div>
 
           <div className="card-pad">
+            <h2 className="section-title mb-3">Portal access</h2>
+            <ul className="space-y-2">
+              {client.portalUsers.map((u) => (
+                <li key={u.id} className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2 text-sm last:border-0">
+                  <div>
+                    <div className="font-medium text-slate-800">
+                      {u.email} {u.active ? <Badge tone="green">Active</Badge> : <Badge tone="red">Disabled</Badge>}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {u.lastLoginAt ? `Last sign-in ${fmtDate(u.lastLoginAt)}` : "Never signed in"}
+                    </div>
+                  </div>
+                  {u.active ? (
+                    <form action={disablePortalUser.bind(null, client.id, u.id)}>
+                      <ConfirmButton message={`Disable portal access for ${u.email}?`}>Disable</ConfirmButton>
+                    </form>
+                  ) : null}
+                </li>
+              ))}
+              {client.portalInvites
+                .filter((i) => inviteState(i) === "valid")
+                .map((i) => (
+                  <li key={i.id} className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2 text-sm last:border-0">
+                    <div>
+                      <div className="font-medium text-slate-800">
+                        {i.email} <Badge tone="amber">Invited</Badge>
+                      </div>
+                      <div className="text-xs text-slate-500">Expires {fmtDate(i.expiresAt)}</div>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <form action={resendPortalInvite.bind(null, client.id, i.id)}>
+                        <button type="submit" className="btn btn-sm">Resend</button>
+                      </form>
+                      <form action={revokePortalInvite.bind(null, client.id, i.id)}>
+                        <ConfirmButton message={`Revoke the portal invitation for ${i.email}?`}>Revoke</ConfirmButton>
+                      </form>
+                    </div>
+                  </li>
+                ))}
+              {client.portalUsers.length === 0 && client.portalInvites.filter((i) => inviteState(i) === "valid").length === 0 ? (
+                <li className="text-sm text-slate-400">No portal access yet.</li>
+              ) : null}
+            </ul>
+            <form action={invitePortalUser.bind(null, client.id)} className="mt-4 space-y-3 border-t border-slate-100 pt-3">
+              <input
+                name="email"
+                type="email"
+                required
+                placeholder="Email to invite"
+                defaultValue={client.email ?? ""}
+                className="input"
+              />
+              <button type="submit" className="btn btn-sm">
+                <Plus className="h-3.5 w-3.5" /> Invite to portal
+              </button>
+            </form>
+          </div>
+
+          <div className="card-pad">
             <h2 className="section-title mb-3">Open tasks</h2>
             <ul className="space-y-2">
               {client.tasks.map((t) => (
@@ -179,7 +250,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                   {client.policies.map((p) => (
                     <tr key={p.id}>
                       <td>
-                        <Link href={`/policies/${p.id}`} className="font-medium text-indigo-700 hover:underline">
+                        <Link href={`/policies/${p.id}`} className="font-medium text-navy-700 hover:underline">
                           {p.policyNumber}
                         </Link>
                       </td>
@@ -212,7 +283,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               <ul className="space-y-2">
                 {client.claims.map((c) => (
                   <li key={c.id} className="flex items-center justify-between text-sm">
-                    <Link href={`/claims/${c.id}`} className="font-medium text-indigo-700 hover:underline">
+                    <Link href={`/claims/${c.id}`} className="font-medium text-navy-700 hover:underline">
                       {c.claimNumber}
                     </Link>
                     <span className="flex items-center gap-2 text-xs text-slate-500">
@@ -230,7 +301,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               <ul className="space-y-2">
                 {client.invoices.map((inv) => (
                   <li key={inv.id} className="flex items-center justify-between text-sm">
-                    <Link href={`/accounting/invoices/${inv.id}`} className="font-medium text-indigo-700 hover:underline">
+                    <Link href={`/accounting/invoices/${inv.id}`} className="font-medium text-navy-700 hover:underline">
                       {inv.invoiceNumber}
                     </Link>
                     <span className="flex items-center gap-2 text-xs text-slate-500">
@@ -248,7 +319,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               <ul className="space-y-2">
                 {client.certificates.map((cert) => (
                   <li key={cert.id} className="flex items-center justify-between text-sm">
-                    <Link href={`/certificates/${cert.id}`} className="font-medium text-indigo-700 hover:underline">
+                    <Link href={`/certificates/${cert.id}`} className="font-medium text-navy-700 hover:underline">
                       {cert.certNumber}
                     </Link>
                     <span className="text-xs text-slate-500">{cert.holder.name}</span>
@@ -263,7 +334,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               <ul className="space-y-2">
                 {client.documents.map((d) => (
                   <li key={d.id} className="flex items-center justify-between text-sm">
-                    <a href={`/api/documents/${d.id}/download`} className="font-medium text-indigo-700 hover:underline">
+                    <a href={`/api/documents/${d.id}/download`} className="font-medium text-navy-700 hover:underline">
                       {d.fileName}
                     </a>
                     <span className="text-xs text-slate-500">{fmtDate(d.createdAt)}</span>
@@ -271,7 +342,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                 ))}
                 {client.documents.length === 0 ? <li className="text-sm text-slate-400">No documents.</li> : null}
               </ul>
-              <Link href={`/documents?clientId=${client.id}`} className="mt-3 inline-block text-xs text-indigo-700 hover:underline">
+              <Link href={`/documents?clientId=${client.id}`} className="mt-3 inline-block text-xs text-navy-700 hover:underline">
                 Upload via Documents →
               </Link>
             </div>

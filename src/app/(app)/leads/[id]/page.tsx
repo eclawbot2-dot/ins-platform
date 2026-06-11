@@ -31,7 +31,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   if (!lead) notFound();
 
   const [users, campaigns] = await Promise.all([
-    prisma.user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { active: true, role: { not: "CLIENT" } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.campaign.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 

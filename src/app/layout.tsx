@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { BRAND } from "@/lib/brand";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Ins Platform", template: "%s · Ins Platform" },
-  description: "Insurance agency management platform",
+  title: { default: BRAND.name, template: `%s · ${BRAND.name}` },
+  description: `${BRAND.name} — insurance agency management and client portal`,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

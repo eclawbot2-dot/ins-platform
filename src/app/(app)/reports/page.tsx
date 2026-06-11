@@ -57,7 +57,7 @@ export default function ReportsPage() {
         {REPORTS.map((r) => (
           <Link key={r.href} href={r.href} className="card-pad transition hover:shadow-md">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <r.icon className="h-4 w-4 text-indigo-500" /> {r.title}
+              <r.icon className="h-4 w-4 text-navy-500" /> {r.title}
             </div>
             <p className="mt-1 text-xs text-slate-500">{r.description}</p>
           </Link>

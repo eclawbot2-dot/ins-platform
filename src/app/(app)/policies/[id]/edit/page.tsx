@@ -13,7 +13,7 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
     prisma.policy.findUnique({ where: { id } }),
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.carrier.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.user.findMany({ where: { active: true }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { active: true, role: { not: "CLIENT" } }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }),
   ]);
   if (!policy) notFound();
   return (

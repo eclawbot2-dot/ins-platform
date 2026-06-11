@@ -48,13 +48,13 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         }
         description={
           <>
-            <Link href={`/clients/${invoice.client.id}`} className="text-indigo-700 hover:underline">
+            <Link href={`/clients/${invoice.client.id}`} className="text-navy-700 hover:underline">
               {invoice.client.name}
             </Link>
             {invoice.policy ? (
               <>
                 {" · "}
-                <Link href={`/policies/${invoice.policy.id}`} className="text-indigo-700 hover:underline">
+                <Link href={`/policies/${invoice.policy.id}`} className="text-navy-700 hover:underline">
                   {invoice.policy.policyNumber}
                 </Link>
               </>

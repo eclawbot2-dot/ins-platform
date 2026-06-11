@@ -143,5 +143,95 @@ check("public leads accepts valid key", goodLead.status === 201 && leadJson.ok =
 const anon = await fetch(`${BASE}/dashboard`, { redirect: "manual" });
 check("anonymous /dashboard redirects", anon.status === 307 || anon.status === 302);
 
+// 7. While still STAFF: the portal area bounces staff back to the app.
+const staffPortal = await req("/portal", {});
+check(
+  "staff is bounced out of /portal",
+  (staffPortal.status === 307 || staffPortal.status === 302) &&
+    (staffPortal.headers.get("location") ?? "").includes("/dashboard"),
+  `status ${staffPortal.status} → ${staffPortal.headers.get("location")}`,
+);
+
+// ── Client portal ────────────────────────────────────────────────────
+const PORTAL_EMAIL = "client@taboragency.com";
+const PORTAL_PASSWORD = "Client2026!";
+
+// 8. Portal public surface (anonymous).
+jar.clear();
+for (const [path, marker] of [
+  ["/portal/login", "Tabor Agency"],
+  ["/portal/request-access", "Request portal access"],
+]) {
+  const res = await req(path);
+  const body = res.status === 200 ? await res.text() : "";
+  check(`GET ${path} (anonymous)`, res.status === 200 && body.includes(marker), `status ${res.status}`);
+}
+const anonPortal = await fetch(`${BASE}/portal/policies`, { redirect: "manual" });
+check(
+  "anonymous /portal/* redirects to portal login",
+  (anonPortal.status === 307 || anonPortal.status === 302) &&
+    (anonPortal.headers.get("location") ?? "").includes("/portal/login"),
+);
+
+// 9. Portal login (seeded CLIENT user).
+const pCsrf = await (await req("/api/auth/csrf")).json();
+const pLogin = await req("/api/auth/callback/credentials", {
+  method: "POST",
+  headers: { "content-type": "application/x-www-form-urlencoded" },
+  body: new URLSearchParams({
+    csrfToken: pCsrf.csrfToken,
+    email: PORTAL_EMAIL,
+    password: PORTAL_PASSWORD,
+    callbackUrl: `${BASE}/portal`,
+  }),
+});
+check(
+  "portal login (credentials callback)",
+  pLogin.status === 302 && Array.from(jar.keys()).some((k) => k.includes("session-token")),
+  `status ${pLogin.status}`,
+);
+
+// 10. Portal pages render with the seeded client's data.
+for (const [path, marker] of [
+  ["/portal", "Active policies"],
+  ["/portal/policies", "General Liability"],
+  ["/portal/documents", "harborview"],
+  ["/portal/invoices", "INV-"],
+  ["/portal/claims", "CLM-"],
+  ["/portal/claims/new", "Date of loss"],
+  ["/portal/certificates", "Certificate holder name"],
+  ["/portal/profile", "Harborview"],
+]) {
+  const res = await req(path);
+  const body = res.status === 200 ? await res.text() : "";
+  const found = body.toLowerCase().includes(marker.toLowerCase());
+  check(`GET ${path} (client)`, res.status === 200 && found, `status ${res.status}${found ? "" : `, marker "${marker}" missing`}`);
+}
+
+// 11. Role wall: a CLIENT session is terminally blocked from staff surfaces.
+const clientDash = await req("/dashboard");
+check(
+  "CLIENT blocked from /dashboard (redirect to /portal)",
+  (clientDash.status === 307 || clientDash.status === 302) &&
+    (clientDash.headers.get("location") ?? "").includes("/portal"),
+  `status ${clientDash.status} → ${clientDash.headers.get("location")}`,
+);
+for (const path of ["/clients", "/policies", "/settings"]) {
+  const res = await req(path);
+  check(`CLIENT blocked from ${path}`, res.status === 307 || res.status === 302, `status ${res.status}`);
+}
+const clientApi = await req("/api/reports/book?by=carrier");
+check("CLIENT blocked from staff API (403)", clientApi.status === 403, `status ${clientApi.status}`);
+
+// 12. Portal document download is scoped + opt-in.
+const docsPage = await req("/portal/documents");
+const docId = (await docsPage.text()).match(/\/api\/portal\/documents\/(c[a-z0-9]{15,})/)?.[1];
+if (docId) {
+  const dl = await req(`/api/portal/documents/${docId}`);
+  check("portal document download", dl.status === 200, `status ${dl.status}`);
+} else {
+  check("portal document download", false, "no shared document link found");
+}
+
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

@@ -46,7 +46,7 @@ export default async function FunnelReportPage() {
               </div>
               <div className="h-5 w-full overflow-hidden rounded bg-slate-100">
                 <div
-                  className={`h-full rounded ${f.stage === "BOUND" ? "bg-emerald-500" : "bg-indigo-500"}`}
+                  className={`h-full rounded ${f.stage === "BOUND" ? "bg-emerald-500" : "bg-navy-500"}`}
                   style={{ width: `${(f.count / max) * 100}%` }}
                 />
               </div>

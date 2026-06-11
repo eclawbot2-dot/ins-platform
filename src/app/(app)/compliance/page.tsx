@@ -34,7 +34,7 @@ export default async function CompliancePage() {
       orderBy: { appointmentExpiresAt: "asc" },
       select: { id: true, name: true, appointmentExpiresAt: true },
     }),
-    prisma.user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { active: true, role: { not: "CLIENT" } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 
   const alerts = [
@@ -120,7 +120,7 @@ export default async function CompliancePage() {
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                       <div
-                        className={`h-full rounded-full ${progress.complete ? "bg-emerald-500" : "bg-indigo-500"}`}
+                        className={`h-full rounded-full ${progress.complete ? "bg-emerald-500" : "bg-navy-500"}`}
                         style={{ width: `${progress.pct}%` }}
                       />
                     </div>
@@ -232,7 +232,7 @@ export default async function CompliancePage() {
               expiringAppointments.map((c) => (
                 <tr key={c.id}>
                   <td>
-                    <Link href={`/carriers/${c.id}`} className="font-medium text-indigo-700 hover:underline">
+                    <Link href={`/carriers/${c.id}`} className="font-medium text-navy-700 hover:underline">
                       {c.name}
                     </Link>
                   </td>

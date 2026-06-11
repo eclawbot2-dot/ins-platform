@@ -20,7 +20,7 @@ export default async function NewQuoteRequestPage({
       select: { id: true, firstName: true, lastName: true },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { active: true, role: { not: "CLIENT" } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
   return (
     <>

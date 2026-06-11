@@ -16,3 +16,14 @@ export function appBaseUrl(): string {
     "";
   return raw.replace(/\/+$/, "");
 }
+
+/**
+ * Base URL used in CLIENT-facing emails/links (portal invites etc.).
+ * The portal is reachable on two hostnames — ins.jahdev.com and
+ * portal.taboragency.com — and PORTAL_URL picks which one we put in
+ * front of customers. Falls back to the staff base URL.
+ */
+export function portalBaseUrl(): string {
+  const raw = process.env.PORTAL_URL ?? "";
+  return raw ? raw.replace(/\/+$/, "") : appBaseUrl();
+}

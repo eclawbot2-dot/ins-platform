@@ -56,7 +56,7 @@ export function DataTable<T>({
                     return (
                       <td key={c.key} className={c.className}>
                         {href && ci === 0 ? (
-                          <Link href={href} className="font-medium text-indigo-700 hover:underline">
+                          <Link href={href} className="font-medium text-navy-700 hover:underline">
                             {content}
                           </Link>
                         ) : (

@@ -1,11 +1,15 @@
-# ins-platform
+# ins-platform — Tabor Agency
 
-Insurance agency management system (AMS) — CRM, policies, quoting, renewals,
-claims, commissions, certificates, compliance, accounting, marketing, and
-reporting for an independent P&C agency.
+**Tabor Agency** insurance agency management system (AMS) + client portal —
+CRM, policies, quoting, renewals, claims, commissions, certificates,
+compliance, accounting, marketing, and reporting for an independent P&C
+agency, plus a customer-facing portal at `/portal`.
 
-- **Live URL:** https://ins.jahdev.com (Cloudflare tunnel → localhost:3220)
-- **Login:** `ericbbowman2@gmail.com` / `Ins2026!` (seeded admin)
+- **Live URL:** https://ins.jahdev.com (Cloudflare tunnel → localhost:3220);
+  the client portal also answers at https://portal.taboragency.com (NS cutover pending)
+- **Staff login:** `ericbbowman2@gmail.com` / `Ins2026!` (seeded admin) at `/login`
+- **Client portal login:** `client@taboragency.com` / `Client2026!` (seeded demo client) at `/portal/login`
+- **Brand:** all brand strings live in `src/lib/brand.ts` (navy `#13294B` / gold palette in `globals.css`)
 - **Stack:** Next.js 16 (App Router) · React 19 · TypeScript strict · Tailwind 4 ·
   Prisma 7 on PostgreSQL 16 (`@prisma/adapter-pg`) · NextAuth v5 (credentials + bcrypt) · Vitest
 
@@ -58,6 +62,39 @@ npm run start               # serves on port 3220
 | Marketing (campaigns, source ROI, referrals) | `/marketing` |
 | Reports (book, production, retention, trend, commission revenue, funnel — CSV everywhere) | `/reports` |
 | Settings (profile, integrations, templates, intake keys, audit log) | `/settings` |
+| **Client portal** (see below) | `/portal` |
+
+## Client portal
+
+Customers sign in at `/portal/login` (Tabor-branded, separate from the staff
+login) and get a mobile-first portal scoped to THEIR client record only:
+
+| Page | What it shows |
+| --- | --- |
+| `/portal` | Dashboard — active policies, next renewal, open invoices/claims, agency contact card |
+| `/portal/policies` (+ `/[id]`) | Coverage, premium, carrier, term, endorsements, shared documents |
+| `/portal/documents` | Only documents staff marked **visibleToClient** (download via `/api/portal/documents/[id]`) |
+| `/portal/invoices` | Open/paid invoices with Xero **Pay now** links when present (no direct card charges) |
+| `/portal/claims` (+ `/new`, `/[id]`) | Claim tracking + FNOL form (creates a `REPORTED` claim + staff task) |
+| `/portal/certificates` | COI request form (creates a staff task with holder details) |
+| `/portal/profile` | Contact info on file + change-request form (→ staff task) |
+
+**Access model.** Portal logins are `User` rows with role `CLIENT` and a
+`clientId` link. The middleware terminally blocks CLIENT sessions from every
+staff page/API (and staff from `/portal`); every portal page re-checks the
+session before its first query, and every query is scoped by the session's
+`clientId` — ids from params/bodies are never trusted.
+
+**Invite flow.** On a staff client page → *Portal access* → **Invite to
+portal**: creates a single-use `PortalInvite` (SHA-256 token hash, 7-day
+expiry, revocable/resendable) and emails a link to
+`/portal/accept-invite?token=…` where the customer sets a password. Prospects
+can apply via the public, rate-limited `/portal/request-access` form (creates
+a staff task).
+
+**Hostnames.** The app serves both `https://ins.jahdev.com` and
+`https://portal.taboragency.com`. Links in client emails use `PORTAL_URL`;
+in-app redirects are always relative (tunnel rule).
 
 ## Public lead intake
 
@@ -75,7 +112,11 @@ are notified.
 
 ## Conventions / house rules
 
-- All absolute URLs come from `APP_URL` — never `req.url` (Cloudflare-tunnel rule).
+- All absolute URLs come from `APP_URL` (client-facing links: `PORTAL_URL`) —
+  never `req.url` (Cloudflare-tunnel rule). In-flow redirects are relative.
+- Portal queries are ALWAYS scoped by the session's `clientId`
+  (`src/lib/domain/portal-scope.ts`); role CLIENT is walled off from staff
+  routes in `src/middleware.ts` AND in `requireSession()`.
 - Email sender is `no-reply@ins.jahdev.com` via Resend (log-only fallback until
   the domain is verified). **Never** send from braetr.com.
 - Online payment = Xero invoice "Pay now" links only; no direct card charges.

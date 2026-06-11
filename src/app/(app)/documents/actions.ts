@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { fStrOpt, fEnum } from "@/lib/form";
+import { fStrOpt, fEnum, fBool } from "@/lib/form";
 import { saveUpload } from "@/lib/storage";
 import type { DocType } from "@prisma/client";
 
@@ -36,12 +36,31 @@ export async function uploadDocument(formData: FormData) {
       clientId: fStrOpt(formData, "clientId"),
       policyId: fStrOpt(formData, "policyId"),
       claimId: fStrOpt(formData, "claimId"),
+      visibleToClient: fBool(formData, "visibleToClient"),
       uploadedById: session.userId,
     },
   });
   await audit({ userId: session.userId, action: "DOCUMENT_UPLOAD", entityType: "Document", entityId: doc.id, detail: file.name });
   revalidatePath("/documents");
   redirect(`/documents?toast=${encodeURIComponent("Document uploaded")}`);
+}
+
+/** Toggle whether the client portal can see/download this document. */
+export async function toggleDocumentVisibility(id: string) {
+  const session = await requireSession();
+  const doc = await prisma.document.findUnique({ where: { id }, select: { visibleToClient: true, fileName: true } });
+  if (!doc) redirect(`/documents?toastError=${encodeURIComponent("Document not found")}`);
+  const next = !doc.visibleToClient;
+  await prisma.document.update({ where: { id }, data: { visibleToClient: next } });
+  await audit({
+    userId: session.userId,
+    action: next ? "DOCUMENT_SHARE_PORTAL" : "DOCUMENT_UNSHARE_PORTAL",
+    entityType: "Document",
+    entityId: id,
+    detail: doc.fileName,
+  });
+  revalidatePath("/documents");
+  redirect(`/documents?toast=${encodeURIComponent(next ? "Document shared to client portal" : "Document hidden from client portal")}`);
 }
 
 export async function deleteDocument(id: string) {

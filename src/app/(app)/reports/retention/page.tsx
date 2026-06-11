@@ -61,7 +61,7 @@ export default async function RetentionReportPage() {
               report.rows.map((r) => (
                 <tr key={r.policyId}>
                   <td>
-                    <Link href={`/policies/${r.policyId}`} className="font-medium text-indigo-700 hover:underline">
+                    <Link href={`/policies/${r.policyId}`} className="font-medium text-navy-700 hover:underline">
                       {r.policyNumber}
                     </Link>
                   </td>

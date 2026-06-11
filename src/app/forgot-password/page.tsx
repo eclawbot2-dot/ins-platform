@@ -49,7 +49,7 @@ export default async function ForgotPasswordPage({
             </button>
           </form>
           <p className="mt-4 text-center text-sm">
-            <Link href="/login" className="text-indigo-700 hover:underline">
+            <Link href="/login" className="text-navy-700 hover:underline">
               Back to sign in
             </Link>
           </p>

@@ -15,7 +15,7 @@ export default async function NewPolicyPage({
   const [clients, carriers, users] = await Promise.all([
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.carrier.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.user.findMany({ where: { active: true }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { active: true, role: { not: "CLIENT" } }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }),
   ]);
   return (
     <>

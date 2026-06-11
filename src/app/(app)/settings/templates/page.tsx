@@ -46,7 +46,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
               templates.map((t) => (
                 <tr key={t.id}>
                   <td>
-                    <Link href={`/settings/templates?edit=${t.key}`} className="font-medium text-indigo-700 hover:underline">
+                    <Link href={`/settings/templates?edit=${t.key}`} className="font-medium text-navy-700 hover:underline">
                       {t.key}
                     </Link>
                   </td>

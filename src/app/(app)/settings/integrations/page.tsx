@@ -46,7 +46,7 @@ export default async function IntegrationsPage() {
         <div className="card-pad">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="section-title flex items-center gap-2">
-              <Plug className="h-4 w-4 text-indigo-500" /> Xero (accounting)
+              <Plug className="h-4 w-4 text-navy-500" /> Xero (accounting)
             </h2>
             <span className="flex items-center gap-2">
               <StatusDot ok={xeroConnected && xeroConn?.status === "CONNECTED"} />
@@ -113,7 +113,7 @@ export default async function IntegrationsPage() {
         <div className="card-pad">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="section-title flex items-center gap-2">
-              <Plug className="h-4 w-4 text-indigo-500" /> Google Workspace (Gmail + Calendar)
+              <Plug className="h-4 w-4 text-navy-500" /> Google Workspace (Gmail + Calendar)
             </h2>
             <span className="flex items-center gap-2">
               <StatusDot ok={workspace.saConfigured && workspace.enabled} />
@@ -164,7 +164,7 @@ export default async function IntegrationsPage() {
         <div className="card-pad">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="section-title flex items-center gap-2">
-              <Plug className="h-4 w-4 text-indigo-500" /> Resend (transactional email)
+              <Plug className="h-4 w-4 text-navy-500" /> Resend (transactional email)
             </h2>
             <span className="flex items-center gap-2">
               <StatusDot ok={resendConfigured} />

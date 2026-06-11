@@ -174,7 +174,7 @@ export default async function DashboardPage() {
         <div className="card-pad">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="section-title">Activity feed</h2>
-            <Link href="/clients" className="text-xs text-indigo-700 hover:underline">
+            <Link href="/clients" className="text-xs text-navy-700 hover:underline">
               View clients →
             </Link>
           </div>
@@ -193,7 +193,7 @@ export default async function DashboardPage() {
                     {a.client ? (
                       <>
                         {" · "}
-                        <Link href={`/clients/${a.client.id}`} className="text-indigo-700 hover:underline">
+                        <Link href={`/clients/${a.client.id}`} className="text-navy-700 hover:underline">
                           {a.client.name}
                         </Link>
                       </>
@@ -208,7 +208,7 @@ export default async function DashboardPage() {
         <div className="card-pad">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="section-title">Tasks due</h2>
-            <Link href="/tasks" className="text-xs text-indigo-700 hover:underline">
+            <Link href="/tasks" className="text-xs text-navy-700 hover:underline">
               All tasks →
             </Link>
           </div>

@@ -7,7 +7,7 @@ import { Field, FormGrid, Select } from "@/components/ui/form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { fmtDate } from "@/lib/domain/dates";
 import { humanize } from "@/lib/labels";
-import { deleteDocument, uploadDocument } from "./actions";
+import { deleteDocument, toggleDocumentVisibility, uploadDocument } from "./actions";
 import type { Prisma } from "@prisma/client";
 
 export const metadata = { title: "Documents" };
@@ -59,6 +59,7 @@ export default async function DocumentsPage({
               <th>File</th>
               <th>Type</th>
               <th>Linked to</th>
+              <th>Portal</th>
               <th>Size</th>
               <th>Uploaded</th>
               <th>By</th>
@@ -69,7 +70,7 @@ export default async function DocumentsPage({
             {docs.map((d) => (
               <tr key={d.id}>
                 <td>
-                  <a href={`/api/documents/${d.id}/download`} className="font-medium text-indigo-700 hover:underline">
+                  <a href={`/api/documents/${d.id}/download`} className="font-medium text-navy-700 hover:underline">
                     {d.fileName}
                   </a>
                 </td>
@@ -78,14 +79,14 @@ export default async function DocumentsPage({
                 </td>
                 <td className="text-xs">
                   {d.client ? (
-                    <Link href={`/clients/${d.client.id}`} className="text-indigo-700 hover:underline">
+                    <Link href={`/clients/${d.client.id}`} className="text-navy-700 hover:underline">
                       {d.client.name}
                     </Link>
                   ) : null}
                   {d.policy ? (
                     <>
                       {d.client ? " · " : ""}
-                      <Link href={`/policies/${d.policy.id}`} className="text-indigo-700 hover:underline">
+                      <Link href={`/policies/${d.policy.id}`} className="text-navy-700 hover:underline">
                         {d.policy.policyNumber}
                       </Link>
                     </>
@@ -93,12 +94,23 @@ export default async function DocumentsPage({
                   {d.claim ? (
                     <>
                       {" "}
-                      <Link href={`/claims/${d.claim.id}`} className="text-indigo-700 hover:underline">
+                      <Link href={`/claims/${d.claim.id}`} className="text-navy-700 hover:underline">
                         {d.claim.claimNumber}
                       </Link>
                     </>
                   ) : null}
                   {!d.client && !d.policy && !d.claim ? "—" : null}
+                </td>
+                <td>
+                  <form action={toggleDocumentVisibility.bind(null, d.id)} className="inline">
+                    <button
+                      type="submit"
+                      className="cursor-pointer"
+                      title={d.visibleToClient ? "Visible in the client portal — click to hide" : "Hidden from the client portal — click to share"}
+                    >
+                      {d.visibleToClient ? <Badge tone="green">Shared</Badge> : <Badge tone="slate">Hidden</Badge>}
+                    </button>
+                  </form>
                 </td>
                 <td>{fmtBytes(d.sizeBytes)}</td>
                 <td>{fmtDate(d.createdAt)}</td>
@@ -114,7 +126,7 @@ export default async function DocumentsPage({
             ))}
             {docs.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-400">
+                <td colSpan={8} className="py-8 text-center text-slate-400">
                   No documents{clientId || policyId || claimId ? " for this filter" : ""}.
                 </td>
               </tr>
@@ -153,6 +165,9 @@ export default async function DocumentsPage({
               <Select name="claimId" allowEmpty defaultValue={claimId ?? ""} options={claims.map((c) => ({ value: c.id, label: c.claimNumber }))} />
             </Field>
           </FormGrid>
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <input type="checkbox" name="visibleToClient" /> Share with client in the portal
+          </label>
           <button type="submit" className="btn-primary">
             Upload
           </button>

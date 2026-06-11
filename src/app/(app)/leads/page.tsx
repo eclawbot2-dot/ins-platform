@@ -81,7 +81,7 @@ export default async function LeadsPage({
           ) : (
             <span>
               No leads yet.{" "}
-              <Link href="/leads/new" className="font-medium text-indigo-700 hover:underline">
+              <Link href="/leads/new" className="font-medium text-navy-700 hover:underline">
                 Add a lead →
               </Link>
             </span>

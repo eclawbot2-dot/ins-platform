@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, Shield, X } from "lucide-react";
+import { BRAND } from "@/lib/brand";
 import { NavLinks } from "./nav-links";
 import { SignOutButton } from "./sign-out-button";
 
@@ -50,8 +51,8 @@ export function MobileNav({ userName, userRole }: { userName: string; userRole: 
           <Menu className="h-5 w-5" />
         </button>
         <div className="flex items-center gap-2">
-          <Shield className="h-5 w-5 text-indigo-600" />
-          <span className="text-sm font-bold text-slate-900">Ins Platform</span>
+          <Shield className="h-5 w-5 text-navy-600" />
+          <span className="text-sm font-bold text-slate-900">{BRAND.name}</span>
         </div>
         {/* Spacer to keep the brand centered */}
         <div className="h-11 w-11" aria-hidden="true" />
@@ -64,13 +65,13 @@ export function MobileNav({ userName, userRole }: { userName: string; userRole: 
             onClick={() => setOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute inset-y-0 left-0 flex w-80 max-w-[85vw] flex-col bg-[#101a33] text-slate-300 shadow-xl">
+          <div className="absolute inset-y-0 left-0 flex w-80 max-w-[85vw] flex-col bg-[#0e203b] text-slate-300 shadow-xl">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
               <div className="flex items-center gap-2.5">
-                <Shield className="h-6 w-6 text-indigo-400" />
+                <Shield className="h-6 w-6 text-gold-400" />
                 <div>
-                  <div className="text-sm font-bold tracking-wide text-white">Ins Platform</div>
-                  <div className="text-[11px] text-slate-400">Agency Management</div>
+                  <div className="text-sm font-bold tracking-wide text-white">{BRAND.name}</div>
+                  <div className="text-[11px] text-slate-400">{BRAND.staffTagline}</div>
                 </div>
               </div>
               <button

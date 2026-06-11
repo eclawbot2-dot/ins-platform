@@ -28,7 +28,7 @@ export default async function OpportunitiesPage() {
       orderBy: { updatedAt: "desc" },
       include: { client: { select: { id: true, name: true } }, owner: { select: { name: true } } },
     }),
-    prisma.user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { active: true, role: { not: "CLIENT" } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 
@@ -66,7 +66,7 @@ export default async function OpportunitiesPage() {
                     </div>
                     <div className="text-xs text-slate-400">
                       {o.client ? (
-                        <Link href={`/clients/${o.client.id}`} className="text-indigo-700 hover:underline">
+                        <Link href={`/clients/${o.client.id}`} className="text-navy-700 hover:underline">
                           {o.client.name}
                         </Link>
                       ) : (

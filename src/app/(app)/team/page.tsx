@@ -20,6 +20,8 @@ export default async function TeamPage() {
 
   const [users, production] = await Promise.all([
     prisma.user.findMany({
+      // Portal CLIENT logins are managed on the client pages, not here.
+      where: { role: { not: "CLIENT" } },
       orderBy: [{ active: "desc" }, { name: "asc" }],
       select: {
         id: true,
