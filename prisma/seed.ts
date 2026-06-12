@@ -12,7 +12,7 @@ import "dotenv/config";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import bcrypt from "bcryptjs";
-import { PrismaClient, type LineOfBusiness, type PolicyStatus } from "@prisma/client";
+import { PrismaClient, type LineOfBusiness, type PolicyStatus, type TouchpointCategory as TouchpointCategoryT, type TouchpointTrigger as TouchpointTriggerT } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" });
@@ -84,6 +84,9 @@ async function main() {
     prisma.policy.deleteMany(),
     prisma.lead.deleteMany(),
     prisma.campaign.deleteMany(),
+    prisma.scheduledTouchpoint.deleteMany(),
+    prisma.touchpointTemplate.deleteMany(),
+    prisma.clientCommunicationPreferences.deleteMany(),
     prisma.contact.deleteMany(),
     prisma.client.deleteMany(),
     prisma.commissionSchedule.deleteMany(),
@@ -287,6 +290,18 @@ async function main() {
     });
     clients.push(client);
   }
+
+  // ── Lifecycle touchpoint demo data ─────────────────────────────────
+  // A preferredName + DOB on a couple of individuals so birthday and 360
+  // timeline salutations render warmly.
+  await prisma.client.update({
+    where: { id: clients[0]!.id }, // Walter & Janet Simmons
+    data: { preferredName: "Walt", dateOfBirth: new Date(Date.UTC(1962, 5, 14)) },
+  });
+  await prisma.client.update({
+    where: { id: clients[8]!.id }, // Robert & Lisa Patel
+    data: { preferredName: "Rob", dateOfBirth: new Date(Date.UTC(1979, 2, 3)) },
+  });
 
   // ── Client-portal demo login ───────────────────────────────────────
   // Linked to Harborview Builders LLC (clients[1]) — that client has
@@ -1223,6 +1238,172 @@ async function main() {
       },
     });
   }
+
+  // ── Touchpoint templates (warm lifecycle journeys) ─────────────────
+  // category, channel default EMAIL. Every body auto-gets a sender-identity
+  // + unsubscribe footer at SEND time (touchpoint-render.ts), so footers are
+  // NOT hand-written here. {{merge}} fields per the spec.
+  type Tpl = {
+    key: string; name: string; category: TouchpointCategoryT; trigger: TouchpointTriggerT;
+    offsetDays?: number; holidayKey?: string; tenureMonths?: number; requiresApproval?: boolean;
+    subject: string; body: string;
+  };
+  const tpls: Tpl[] = [
+    // ONBOARDING
+    { key: "onboard-welcome", name: "Welcome (onboarding)", category: "ONBOARDING", trigger: "LIFECYCLE_EVENT",
+      subject: "Welcome to {{agencyName}}, {{firstName}}!",
+      body: "Hi {{firstName}},\n\nWelcome to {{agencyName}} — we're genuinely glad you're here. Your dedicated team is {{producerName}}, and we're here whenever you need us at {{agencyPhone}}.\n\nWe'll take good care of you.\n\nWarmly,\n{{producerName}}" },
+    { key: "onboard-portal-nudge", name: "Portal nudge (onboarding)", category: "ONBOARDING", trigger: "LIFECYCLE_EVENT",
+      subject: "Your {{agencyName}} client portal is ready",
+      body: "Hi {{firstName}},\n\nYou now have 24/7 access to your policies, documents, invoices, and claims through your secure portal: {{portalUrl}}\n\nReporting a claim or requesting a certificate takes just a minute there. Of course, we're always a phone call away too.\n\n{{producerName}}, {{agencyName}}" },
+    { key: "onboard-checkin", name: "30-day check-in (onboarding)", category: "ONBOARDING", trigger: "LIFECYCLE_EVENT",
+      subject: "How's everything going, {{firstName}}?",
+      body: "Hi {{firstName}},\n\nIt's been a few weeks since you joined {{agencyName}}, and I wanted to personally check in. Is there anything about your coverage you'd like to revisit, or any questions I can answer?\n\nNo rush — just reply or call {{agencyPhone}} whenever it's convenient.\n\n{{producerName}}" },
+    // SATISFACTION (sensitive → approval)
+    { key: "nps-onboard", name: "Onboarding NPS", category: "SATISFACTION", trigger: "LIFECYCLE_EVENT", requiresApproval: true,
+      subject: "A quick question, {{firstName}}",
+      body: "Hi {{firstName}},\n\nOn a scale of 0–10, how likely are you to recommend {{agencyName}} to a friend or colleague? Your honest answer helps us serve you better.\n\nJust reply with a number — and feel free to add a line about what we could do better.\n\nThank you,\n{{agencyName}}" },
+    { key: "csat-postclaim", name: "Post-claim satisfaction", category: "SATISFACTION", trigger: "LIFECYCLE_EVENT", requiresApproval: true,
+      subject: "How did we handle your claim, {{firstName}}?",
+      body: "Hi {{firstName}},\n\nNow that claim {{claimNumber}} has wrapped up, we'd love to know how the experience felt from your side. Were we responsive? Clear? Is there anything we could have done better?\n\nYour feedback shapes how we care for every client.\n\nWith appreciation,\n{{agencyName}}" },
+    { key: "annual-checkin", name: "Annual coverage check-in", category: "SATISFACTION", trigger: "POLICY_ANNIVERSARY", offsetDays: 0, requiresApproval: true,
+      subject: "Time for your annual coverage review, {{firstName}}",
+      body: "Hi {{firstName}},\n\nIt's been a year on your {{lineOfBusiness}} policy — a great moment to make sure your coverage still fits your life. Anything change? New vehicle, home improvement, a growing family or business?\n\nLet's find 15 minutes to review. Reply here or call {{agencyPhone}}.\n\n{{producerName}}, {{agencyName}}" },
+    { key: "review-request", name: "Online review request", category: "SATISFACTION", trigger: "MANUAL", requiresApproval: true,
+      subject: "Would you share your experience, {{firstName}}?",
+      body: "Hi {{firstName}},\n\nIf {{agencyName}} has made your insurance simpler, a short online review would mean the world to us — and helps neighbors find an agency that truly cares.\n\nOnly if you have a moment. Either way, thank you for trusting us.\n\n{{agencyName}}" },
+    // RENEWAL
+    { key: "renewal-90", name: "Renewal — 90 days", category: "RENEWAL", trigger: "RENEWAL_RELATIVE", offsetDays: -90,
+      subject: "Looking ahead to your {{lineOfBusiness}} renewal, {{firstName}}",
+      body: "Hi {{firstName}},\n\nYour {{lineOfBusiness}} policy {{policyNumber}} with {{carrierName}} renews on {{expirationDate}}. We've already started reviewing the market on your behalf to make sure you keep the right coverage at the right price.\n\nThere's nothing you need to do yet — we'll be in touch. Questions any time: {{agencyPhone}}.\n\n{{producerName}}" },
+    { key: "renewal-60", name: "Renewal — 60 days", category: "RENEWAL", trigger: "RENEWAL_RELATIVE", offsetDays: -60,
+      subject: "Your renewal review is underway, {{firstName}}",
+      body: "Hi {{firstName}},\n\nA quick update: your {{lineOfBusiness}} renewal ({{expirationDate}}) is in progress. We're comparing options and confirming your coverage still matches your needs.\n\nIf anything's changed on your end, let me know so I can factor it in.\n\n{{producerName}}, {{agencyName}}" },
+    { key: "renewal-30", name: "Renewal — 30 days", category: "RENEWAL", trigger: "RENEWAL_RELATIVE", offsetDays: -30, requiresApproval: true,
+      subject: "Your {{lineOfBusiness}} renewal is almost here, {{firstName}}",
+      body: "Hi {{firstName}},\n\nYour {{lineOfBusiness}} policy {{policyNumber}} renews on {{expirationDate}}. Here's where things stand — let's connect briefly to confirm everything looks right before it goes into effect.\n\nReply here or call {{agencyPhone}} and we'll take care of the rest.\n\n{{producerName}}" },
+    { key: "renewal-thankyou", name: "Renewal thank-you", category: "RENEWAL", trigger: "RENEWAL_RELATIVE", offsetDays: 1,
+      subject: "Thank you for renewing with us, {{firstName}}",
+      body: "Hi {{firstName}},\n\nThank you for continuing to trust {{agencyName}} with your {{lineOfBusiness}} coverage. It's a privilege to keep protecting what matters to you.\n\nWe're here all year — never hesitate to reach out.\n\nWith gratitude,\n{{producerName}}" },
+    // PAYMENT
+    { key: "payment-upcoming", name: "Payment reminder (upcoming)", category: "PAYMENT", trigger: "PAYMENT_DUE_RELATIVE", offsetDays: -7,
+      subject: "A friendly reminder: invoice {{invoiceNumber}}",
+      body: "Hi {{firstName}},\n\nJust a gentle heads-up that invoice {{invoiceNumber}} for {{invoiceAmount}} is due on {{dueDate}}. You can pay securely here whenever it's convenient: {{payNowUrl}}\n\nAlready taken care of? Thank you — please disregard. Questions? Call {{agencyPhone}}.\n\n{{agencyName}}" },
+    { key: "payment-receipt", name: "Payment receipt", category: "PAYMENT", trigger: "LIFECYCLE_EVENT",
+      subject: "Payment received — thank you, {{firstName}}",
+      body: "Hi {{firstName}},\n\nWe've received your payment for invoice {{invoiceNumber}} ({{invoiceAmount}}). Thank you! Your account is all set.\n\nWe appreciate you,\n{{agencyName}}" },
+    { key: "payment-grace", name: "Payment past-due (grace)", category: "PAYMENT", trigger: "PAYMENT_DUE_RELATIVE", offsetDays: 5, requiresApproval: true,
+      subject: "Let's keep your coverage active, {{firstName}}",
+      body: "Hi {{firstName}},\n\nWe noticed invoice {{invoiceNumber}} ({{invoiceAmount}}, due {{dueDate}}) is still open. We'd hate for a missed payment to affect your coverage, so we wanted to reach out kindly.\n\nYou can pay here: {{payNowUrl}} — or call {{agencyPhone}} and we'll sort it out together. If there's a hardship, tell us; we'll help.\n\n{{agencyName}}" },
+    // CLAIM (sensitive → approval on follow-ups)
+    { key: "claim-ack", name: "Claim acknowledgement", category: "CLAIM", trigger: "LIFECYCLE_EVENT",
+      subject: "We've got your claim, {{firstName}} ({{claimNumber}})",
+      body: "Hi {{firstName}},\n\nWe're sorry you're dealing with this. Your claim {{claimNumber}} has been reported and we're on it. Someone from our team will guide you through every step — you won't be doing this alone.\n\nIf you need anything right now, call {{agencyPhone}}.\n\nHere for you,\n{{agencyName}}" },
+    { key: "claim-checkin", name: "Claim check-in", category: "CLAIM", trigger: "LIFECYCLE_EVENT", requiresApproval: true,
+      subject: "Checking in on your claim, {{firstName}}",
+      body: "Hi {{firstName}},\n\nJust wanted to check in on claim {{claimNumber}}. How are things going? If there's anything you're waiting on or worried about, tell me and I'll chase it down for you.\n\n{{producerName}}, {{agencyName}}" },
+    { key: "claim-closed", name: "Claim closed", category: "CLAIM", trigger: "LIFECYCLE_EVENT", requiresApproval: true,
+      subject: "Your claim {{claimNumber}} is resolved, {{firstName}}",
+      body: "Hi {{firstName}},\n\nGood news — claim {{claimNumber}} has been closed. We hope everything is back to normal. If anything still feels unfinished, please tell us; we're happy to help.\n\nThank you for your patience throughout.\n\n{{agencyName}}" },
+    // APPRECIATION
+    { key: "birthday", name: "Birthday wishes", category: "APPRECIATION", trigger: "BIRTHDAY", offsetDays: 0,
+      subject: "Happy Birthday, {{firstName}}!",
+      body: "Hi {{firstName}},\n\nHappy Birthday from all of us at {{agencyName}}! We hope your day is filled with the people and moments you love. Thank you for letting us be part of looking after what matters to you.\n\nCheers to you,\n{{agencyName}}" },
+    { key: "policy-anniversary", name: "Policy anniversary", category: "APPRECIATION", trigger: "POLICY_ANNIVERSARY", offsetDays: 0,
+      subject: "Celebrating a year together, {{firstName}}",
+      body: "Hi {{firstName}},\n\nIt's been a year since your {{lineOfBusiness}} policy began with {{agencyName}} — thank you for your trust. We're proud to keep protecting what's important to you.\n\nWith appreciation,\n{{producerName}}" },
+    { key: "tenure-3yr", name: "3-year tenure milestone", category: "APPRECIATION", trigger: "TENURE_MILESTONE", tenureMonths: 36,
+      subject: "{{tenureYears}} years together — thank you, {{firstName}}",
+      body: "Hi {{firstName}},\n\nYou've been part of the {{agencyName}} family for {{tenureYears}} years now, and that means the world to us. Thank you for your loyalty and trust. We're honored to keep serving you.\n\nWith heartfelt thanks,\n{{agencyName}}" },
+    { key: "holiday-thanksgiving", name: "Thanksgiving greeting", category: "APPRECIATION", trigger: "HOLIDAY", holidayKey: "thanksgiving", offsetDays: -2,
+      subject: "Grateful for you this Thanksgiving, {{firstName}}",
+      body: "Hi {{firstName}},\n\nAs Thanksgiving approaches, we're reflecting on what we're grateful for — and clients like you are right at the top of that list. Thank you for trusting {{agencyName}}.\n\nWishing you a warm and happy Thanksgiving,\nThe {{agencyName}} team" },
+    { key: "holiday-newyear", name: "New Year greeting", category: "APPRECIATION", trigger: "HOLIDAY", holidayKey: "newyear", offsetDays: -1,
+      subject: "Happy New Year from {{agencyName}}, {{firstName}}!",
+      body: "Hi {{firstName}},\n\nAs a new year begins, thank you for letting us be part of yours. Here's to a happy, healthy, and well-protected year ahead.\n\nWith warm wishes,\nThe {{agencyName}} team" },
+    { key: "referral-thankyou", name: "Referral thank-you", category: "APPRECIATION", trigger: "LIFECYCLE_EVENT",
+      subject: "Thank you for the referral, {{firstName}}!",
+      body: "Hi {{firstName}},\n\nThank you so much for referring someone to {{agencyName}} — there's no higher compliment. We'll take wonderful care of them, just as we aim to for you.\n\nWith sincere gratitude,\n{{producerName}}" },
+    // OFFBOARDING (sensitive → approval)
+    { key: "cancel-ack-save", name: "Cancellation acknowledgement / save", category: "OFFBOARDING", trigger: "LIFECYCLE_EVENT", requiresApproval: true,
+      subject: "We received your request, {{firstName}}",
+      body: "Hi {{firstName}},\n\nWe've received your request regarding your {{lineOfBusiness}} coverage. Before anything changes, I'd love a quick conversation — sometimes there's an option that fits better, and either way we want to part (or stay) on the best possible terms.\n\nCould we talk this week? Reply here or call {{agencyPhone}}.\n\n{{producerName}}, {{agencyName}}" },
+    { key: "goodbye", name: "Goodbye (offboarding)", category: "OFFBOARDING", trigger: "LIFECYCLE_EVENT", requiresApproval: true,
+      subject: "Thank you for the trust, {{firstName}}",
+      body: "Hi {{firstName}},\n\nThank you for the time you spent with {{agencyName}}. It's been our privilege to serve you. The door is always open — if your needs change, we'd be glad to welcome you back.\n\nWishing you all the best,\n{{agencyName}}" },
+    { key: "winback-30", name: "Win-back — 30 days", category: "OFFBOARDING", trigger: "LIFECYCLE_EVENT", requiresApproval: true,
+      subject: "Thinking of you, {{firstName}}",
+      body: "Hi {{firstName}},\n\nIt's been about a month, and we wanted you to know we'd welcome you back any time. If you'd like a no-pressure review of your current coverage, just say the word.\n\nWarmly,\n{{producerName}}, {{agencyName}}" },
+    { key: "winback-60", name: "Win-back — 60 days", category: "OFFBOARDING", trigger: "LIFECYCLE_EVENT", requiresApproval: true,
+      subject: "A quick hello, {{firstName}}",
+      body: "Hi {{firstName}},\n\nWe hope you're doing well. If your insurance ever feels more complicated than it should, we're here and happy to help — no obligation at all.\n\n{{agencyName}}" },
+    { key: "winback-90", name: "Win-back — 90 days", category: "OFFBOARDING", trigger: "LIFECYCLE_EVENT", requiresApproval: true,
+      subject: "The door's still open, {{firstName}}",
+      body: "Hi {{firstName}},\n\nJust a final friendly note to say {{agencyName}} would love to earn back your business whenever the time is right. Either way, we wish you well.\n\nWith warm regards,\n{{agencyName}}" },
+  ];
+  await prisma.touchpointTemplate.createMany({
+    data: tpls.map((t) => ({
+      key: t.key, name: t.name, category: t.category, channel: "EMAIL" as const,
+      triggerType: t.trigger, offsetDays: t.offsetDays ?? 0, holidayKey: t.holidayKey ?? null,
+      tenureMonths: t.tenureMonths ?? null, subject: t.subject, body: t.body,
+      active: true, requiresApproval: t.requiresApproval ?? false,
+    })),
+  });
+
+  // Communication preferences for the first 12 clients (defaults: opted in).
+  // One client opts out of appreciation; one is do-not-contact (so the
+  // engine demonstrably skips them).
+  for (const [i, c] of clients.slice(0, 12).entries()) {
+    await prisma.clientCommunicationPreferences.create({
+      data: {
+        clientId: c.id,
+        optAppreciation: i !== 4, // clients[4] opted out of appreciation
+        doNotContact: i === 11, // clients[11] is do-not-contact
+      },
+    });
+  }
+
+  // A few already-SENT history rows on the demo client (Harborview, clients[1])
+  // so the 360 communication timeline shows real history.
+  const harborGlForTp = policyIds.find((p) => p.policyNumber.startsWith("GL-HAR"));
+  const historySpecs: Array<[string, number, "SENT" | "SKIPPED", string | null]> = [
+    ["onboard-welcome", -210, "SENT", null],
+    ["onboard-portal-nudge", -208, "SENT", null],
+    ["renewal-90", -95, "SENT", harborGlForTp?.id ?? null],
+    ["holiday-thanksgiving", -45, "SENT", null],
+  ];
+  for (const [key, dayOffset, status, relId] of historySpecs) {
+    const tpl = tpls.find((t) => t.key === key)!;
+    await prisma.scheduledTouchpoint.create({
+      data: {
+        clientId: clients[1]!.id,
+        templateKey: key,
+        channel: "EMAIL",
+        status,
+        scheduledFor: daysFromNow(dayOffset),
+        sentAt: status === "SENT" ? daysFromNow(dayOffset) : null,
+        toAddress: status === "SENT" ? "office@harborviewbuilders.example.com" : null,
+        renderedSubject: status === "SENT" ? tpl.subject.replace("{{firstName}}", "Harborview Builders LLC").replace("{{agencyName}}", "Tabor Agency") : null,
+        renderedBody: status === "SENT" ? "Seed history — see template for full copy." : null,
+        relatedType: relId ? "Policy" : "LifecycleEvent",
+        relatedId: relId,
+        idempotencyKey: `seed:${key}:${clients[1]!.id}:${dayOffset}`,
+      },
+    });
+  }
+  // One PENDING (needs-approval) row so the staff queue isn't empty on first load.
+  await prisma.scheduledTouchpoint.create({
+    data: {
+      clientId: clients[0]!.id,
+      templateKey: "annual-checkin",
+      channel: "EMAIL",
+      status: "PENDING",
+      scheduledFor: daysFromNow(0),
+      relatedType: "LifecycleEvent",
+      relatedId: null,
+      idempotencyKey: `seed:annual-checkin:${clients[0]!.id}:pending`,
+    },
+  });
 
   // ── Summary ────────────────────────────────────────────────────────
   const counts = await prisma.$transaction([

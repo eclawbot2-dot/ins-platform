@@ -9,6 +9,7 @@ import { fStr, fStrOpt, fNum, fNumOpt, fDate } from "@/lib/form";
 import { nextRefNumber, REF_PREFIXES } from "@/lib/domain/numbers";
 import { roundMoney, toNum } from "@/lib/money";
 import { addDays } from "@/lib/domain/dates";
+import { scheduleTouchpoint } from "@/lib/touchpoint-engine";
 import { syncXero } from "@/lib/integrations/xero/invoices";
 
 /**
@@ -105,6 +106,11 @@ export async function recordInvoicePayment(invoiceId: string, formData: FormData
     entityId: invoiceId,
     detail: `$${payment.toFixed(2)}`,
   });
+  // A warm payment receipt when the invoice is settled in full. Transactional
+  // (bypasses appreciation opt-out, still honors do-not-contact at send).
+  if (fullyPaid) {
+    await scheduleTouchpoint("payment-receipt", invoice.clientId, { related: { type: "Invoice", id: invoiceId }, anchorKey: `receipt:${invoiceId}` });
+  }
   revalidatePath(`/accounting/${invoiceId}`);
   redirect(`/accounting/${invoiceId}?toast=${encodeURIComponent(fullyPaid ? "Invoice paid in full" : "Partial payment recorded")}`);
 }

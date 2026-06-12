@@ -10,6 +10,7 @@ import { expectedCommission, validateSplits } from "@/lib/domain/commissions";
 import { proRataReturn, shortRateReturn, prorateEndorsement } from "@/lib/domain/proration";
 import { addYears } from "@/lib/domain/dates";
 import { reinstatementEligibility, lapseHandlingNote } from "@/lib/domain/reinstatement";
+import { scheduleTouchpoint } from "@/lib/touchpoint-engine";
 import { ALL_LOBS } from "@/lib/labels";
 import type { EndorsementRequestType, EndorsementRequestStatus } from "@prisma/client";
 import { coverageTemplateFor } from "@/lib/domain/coverage-templates";
@@ -309,6 +310,8 @@ export async function cancelPolicy(id: string, formData: FormData) {
     data: { status: "CANCELLED", cancelledAt: cancelDate, cancellationReason: `${reason} (${method === "SHORT_RATE" ? "short-rate" : "pro-rata"} return ≈ $${returned.toFixed(2)})` },
   });
   await audit({ userId: session.userId, action: "POLICY_CANCEL", entityType: "Policy", entityId: id, detail: reason });
+  // A kind save-attempt outreach when a policy is cancelled (needs approval).
+  await scheduleTouchpoint("cancel-ack-save", policy!.clientId, { related: { type: "Policy", id }, anchorKey: `cancel:${id}` });
   redirect(`/policies/${id}?toast=${encodeURIComponent(`Policy cancelled — return premium ≈ $${returned.toFixed(2)}`)}`);
 }
 

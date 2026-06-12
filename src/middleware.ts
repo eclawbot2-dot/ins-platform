@@ -30,12 +30,16 @@ const PUBLIC_PATHS = new Set([
   "/portal/login",
   "/portal/accept-invite",
   "/portal/request-access",
+  "/unsubscribe",
 ]);
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_PATHS.has(pathname)) return true;
   if (pathname.startsWith("/api/auth/")) return true;
   if (pathname.startsWith("/api/public/")) return true;
+  // The cron endpoint authenticates itself via the X-Cron-Key header
+  // (env CRON_KEY) inside the route, not via a session.
+  if (pathname.startsWith("/api/cron/")) return true;
   return false;
 }
 

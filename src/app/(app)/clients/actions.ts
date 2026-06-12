@@ -8,8 +8,27 @@ import { audit } from "@/lib/audit";
 import { createPortalInvite } from "@/lib/portal-invite";
 import { fStr, fStrOpt, fNumOpt, fDate, fEnum, fBool } from "@/lib/form";
 import { ALL_LOBS } from "@/lib/labels";
-import { addYears } from "@/lib/domain/dates";
+import { addYears, addDays } from "@/lib/domain/dates";
+import { scheduleTouchpoint } from "@/lib/touchpoint-engine";
 import type { ClientStatus, ClientType, ActivityType } from "@prisma/client";
+
+/** Schedule the onboarding journey when a client first becomes ACTIVE. */
+async function onClientActivated(clientId: string): Promise<void> {
+  const now = new Date();
+  await scheduleTouchpoint("onboard-welcome", clientId, { anchorKey: "welcome" });
+  await scheduleTouchpoint("onboard-portal-nudge", clientId, { anchorKey: "portal", scheduledFor: addDays(now, 2) });
+  await scheduleTouchpoint("onboard-checkin", clientId, { anchorKey: "checkin", scheduledFor: addDays(now, 30) });
+  await scheduleTouchpoint("nps-onboard", clientId, { anchorKey: "nps", scheduledFor: addDays(now, 45) });
+}
+
+/** Schedule the offboarding journey when a client becomes FORMER. */
+async function onClientFormer(clientId: string): Promise<void> {
+  const now = new Date();
+  await scheduleTouchpoint("goodbye", clientId, { anchorKey: "goodbye" });
+  await scheduleTouchpoint("winback-30", clientId, { anchorKey: "wb30", scheduledFor: addDays(now, 30) });
+  await scheduleTouchpoint("winback-60", clientId, { anchorKey: "wb60", scheduledFor: addDays(now, 60) });
+  await scheduleTouchpoint("winback-90", clientId, { anchorKey: "wb90", scheduledFor: addDays(now, 90) });
+}
 
 const CLIENT_TYPES: ClientType[] = ["INDIVIDUAL", "BUSINESS"];
 const CLIENT_STATUSES: ClientStatus[] = ["PROSPECT", "ACTIVE", "INACTIVE", "FORMER"];
@@ -52,14 +71,20 @@ export async function createClient(formData: FormData) {
   const data = clientDataFrom(formData);
   const client = await prisma.client.create({ data });
   await audit({ userId: session.userId, action: "CLIENT_CREATE", entityType: "Client", entityId: client.id, detail: client.name });
+  // Onboarding journey fires when a client is created already ACTIVE.
+  if (data.status === "ACTIVE") await onClientActivated(client.id);
   redirect(`/clients/${client.id}?toast=${encodeURIComponent("Client created")}`);
 }
 
 export async function updateClient(id: string, formData: FormData) {
   const session = await requireSession();
   const data = clientDataFrom(formData);
+  const before = await prisma.client.findUnique({ where: { id }, select: { status: true } });
   await prisma.client.update({ where: { id }, data });
   await audit({ userId: session.userId, action: "CLIENT_UPDATE", entityType: "Client", entityId: id });
+  // Real-time lifecycle hooks on status transitions.
+  if (before && before.status !== "ACTIVE" && data.status === "ACTIVE") await onClientActivated(id);
+  if (before && before.status !== "FORMER" && data.status === "FORMER") await onClientFormer(id);
   redirect(`/clients/${id}?toast=${encodeURIComponent("Client updated")}`);
 }
 

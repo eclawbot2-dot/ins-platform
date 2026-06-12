@@ -11,9 +11,14 @@ import {
   CLAIM_STATUS_LABELS,
   LOB_LABELS,
   POLICY_STATUS_LABELS,
+  TOUCHPOINT_CATEGORY_LABELS,
+  TOUCHPOINT_STATUS_LABELS,
   claimStatusTone,
   policyStatusTone,
+  touchpointCategoryTone,
+  touchpointStatusTone,
 } from "@/lib/labels";
+import { updateClientCommPrefs } from "../../touchpoints/actions";
 import { fmtMoney, fmtMoneyCents, toNum } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
 import { xDateBucket } from "@/lib/domain/xdates";
@@ -55,6 +60,8 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       portalUsers: { select: { id: true, email: true, name: true, active: true, lastLoginAt: true }, orderBy: { createdAt: "asc" } },
       portalInvites: { orderBy: { createdAt: "desc" }, take: 10 },
       priorPolicies: { orderBy: { expirationDate: "asc" } },
+      scheduledTouchpoints: { include: { template: { select: { name: true, category: true } } }, orderBy: { createdAt: "desc" }, take: 25 },
+      commPrefs: true,
     },
   });
   if (!client) notFound();
@@ -513,6 +520,79 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               ))}
               {client.activities.length === 0 ? <li className="text-sm text-slate-400">No activity yet.</li> : null}
             </ul>
+          </div>
+
+          {/* Communication timeline (lifecycle touchpoints) */}
+          <div className="card-pad">
+            <h2 className="section-title mb-1">Communication timeline</h2>
+            <p className="mb-3 text-xs text-slate-400">Proactive appreciation + anticipatory touchpoints — scheduled, sent, skipped.</p>
+            <ul className="space-y-2">
+              {client.scheduledTouchpoints.map((t) => (
+                <li key={t.id} className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2 text-sm last:border-0">
+                  <div className="min-w-0">
+                    <div className="font-medium text-slate-800">
+                      <Badge tone={touchpointCategoryTone(t.template.category)}>{TOUCHPOINT_CATEGORY_LABELS[t.template.category]}</Badge>{" "}
+                      {t.template.name}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {t.sentAt ? `Sent ${fmtDate(t.sentAt)}` : `Scheduled ${fmtDate(t.scheduledFor)}`}
+                      {t.failureReason ? ` · ${t.failureReason}` : ""}
+                    </div>
+                  </div>
+                  <Badge tone={touchpointStatusTone(t.status)}>{TOUCHPOINT_STATUS_LABELS[t.status]}</Badge>
+                </li>
+              ))}
+              {client.scheduledTouchpoints.length === 0 ? (
+                <li className="text-sm text-slate-400">No communications yet.</li>
+              ) : null}
+            </ul>
+          </div>
+
+          {/* Communication preferences (opt-outs / DNC / channel / quiet hours) */}
+          <div className="card-pad">
+            <h2 className="section-title mb-1">Communication preferences</h2>
+            <p className="mb-3 text-xs text-slate-400">Honored by the engine at send time (CAN-SPAM). Do-not-contact blocks everything except legally-required notices.</p>
+            <form action={updateClientCommPrefs.bind(null, client.id)} className="space-y-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-red-600">
+                <input type="checkbox" name="doNotContact" defaultChecked={client.commPrefs?.doNotContact ?? false} /> Do not contact
+              </label>
+              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-sm text-slate-600">
+                {([
+                  ["optOnboarding", "Onboarding"],
+                  ["optRenewal", "Renewal"],
+                  ["optPayment", "Payment"],
+                  ["optClaim", "Claim"],
+                  ["optAppreciation", "Appreciation"],
+                  ["optSatisfaction", "Satisfaction"],
+                  ["optOffboarding", "Offboarding"],
+                ] as const).map(([name, label]) => (
+                  <label key={name} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      name={name}
+                      defaultChecked={(client.commPrefs?.[name] as boolean | undefined) ?? true}
+                    />{" "}
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <FormGrid cols={3}>
+                <Field label="Channel">
+                  <Select
+                    name="preferredChannel"
+                    defaultValue={client.commPrefs?.preferredChannel ?? "EMAIL"}
+                    options={[{ value: "EMAIL", label: "Email" }, { value: "SMS", label: "SMS (dormant)" }]}
+                  />
+                </Field>
+                <Field label="Quiet from (hr)">
+                  <input name="quietHoursStart" type="number" min="0" max="23" defaultValue={client.commPrefs?.quietHoursStart ?? 8} className="input" />
+                </Field>
+                <Field label="Quiet until (hr)">
+                  <input name="quietHoursEnd" type="number" min="0" max="24" defaultValue={client.commPrefs?.quietHoursEnd ?? 20} className="input" />
+                </Field>
+              </FormGrid>
+              <button type="submit" className="btn btn-sm">Save preferences</button>
+            </form>
           </div>
         </div>
       </div>

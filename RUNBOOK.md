@@ -31,6 +31,33 @@ cd C:/Users/bot/Projects/ins-platform
 npm run build && npm run start
 ```
 
+### Scheduled task: `ins-touchpoints` (customer-appreciation engine)
+
+A daily Windows Task Scheduler job hits the touchpoint engine at ~07:00.
+It evaluates the book (schedules due renewal/birthday/anniversary/holiday/
+tenure touchpoints) and runs the send sweep (emails APPROVED, due rows).
+Idempotent — the `idempotencyKey` @unique makes re-runs no-ops, so it can
+never double-send. Auth is the `X-Cron-Key` header (env `CRON_KEY`).
+
+The task runs `scripts\run-touchpoints.cmd`, which POSTs to the route with
+the key. Register (Bash on this host, PowerShell is broken):
+
+```bash
+export MSYS_NO_PATHCONV=1
+# scripts/run-touchpoints.cmd contains the curl + CRON_KEY (keep out of git logs)
+schtasks /Create /TN "ins-touchpoints" /SC DAILY /ST 07:00 /RL HIGHEST /F \
+  /TR "C:\\Users\\bot\\Projects\\ins-platform\\scripts\\run-touchpoints.cmd"
+schtasks /Query /TN "ins-touchpoints"        # confirm Ready + Next Run Time
+schtasks /Run   /TN "ins-touchpoints"        # fire once on demand
+```
+
+Manual one-off (e.g. to test): `dryRun=1` counts due and sends nothing.
+
+```bash
+curl -s -X POST "http://localhost:3220/api/cron/touchpoints?dryRun=1" \
+  -H "x-cron-key: $CRON_KEY" -H "content-type: application/json" -d '{}'
+```
+
 ## Environment (.env)
 
 | Key | Required | Notes |
@@ -44,6 +71,8 @@ npm run build && npm run start
 | `EMAIL_FROM` | no | `no-reply@ins.jahdev.com` — never braetr.com |
 | `PORTAL_URL` | no | Base URL for client-facing links (portal invites); default `https://ins.jahdev.com`, switch to `https://portal.taboragency.com` after NS cutover |
 | `LEAD_INTAKE_KEY` | yes | Shared secret for `POST /api/public/leads` |
+| `CRON_KEY` | yes | Shared secret for `POST /api/cron/touchpoints` (the `ins-touchpoints` task). If unset, the route 503s and never runs unauthenticated. |
+| `ANTHROPIC_API_KEY` / `TOUCHPOINT_AI` | no | Both set → dormant AI rewrite of touchpoint copy (`claude-opus-4-8`). Unset → engine runs on seeded templates only; never blocks a send. |
 | `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` | for Xero | See Xero setup below |
 | `GOOGLE_WORKSPACE_SA_KEY_FILE` | no | Default `C:/Users/bot/secrets/ins-workspace-sa.json`; app degrades cleanly when absent |
 | `GOOGLE_WORKSPACE_SUBJECT` | no | DWD impersonation user (can also be set in Settings → Integrations) |

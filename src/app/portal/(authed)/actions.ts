@@ -4,11 +4,12 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClientUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { fStr, fStrOpt, fDate, fEnum } from "@/lib/form";
+import { fStr, fStrOpt, fDate, fEnum, fBool } from "@/lib/form";
 import { validateFnol } from "@/lib/domain/fnol";
 import { portalPolicyWhere } from "@/lib/domain/portal-scope";
 import { nextRefNumber, REF_PREFIXES } from "@/lib/domain/numbers";
 import { addDays } from "@/lib/domain/dates";
+import { scheduleClaimOpenedTouchpoints } from "@/app/(app)/claims/actions";
 import { ENDORSEMENT_REQUEST_TYPE_LABELS } from "@/lib/labels";
 import type { EndorsementRequestType } from "@prisma/client";
 
@@ -100,6 +101,7 @@ export async function portalSubmitClaim(formData: FormData) {
     entityId: claim.id,
     detail: claimNumber,
   });
+  await scheduleClaimOpenedTouchpoints(clientId, claim.id);
 
   redirect(`/portal/claims?toast=${encodeURIComponent(`Claim ${claimNumber} reported — we'll be in touch shortly`)}`);
 }
@@ -184,6 +186,33 @@ export async function portalRequestProfileChange(formData: FormData) {
   });
 
   redirect(`/portal/profile?toast=${encodeURIComponent("Request sent — we'll confirm once it's updated")}`);
+}
+
+/**
+ * Client self-service email preferences. Scoped to the session's own
+ * clientId (never a body id). Mirrors the staff editor but is honored by
+ * the SAME engine gates at send time, so this is real consent, not UI-only.
+ */
+export async function portalUpdateCommPrefs(formData: FormData) {
+  const session = await requireClientUser();
+  const clientId = session.clientId;
+  const data = {
+    doNotContact: fBool(formData, "doNotContact"),
+    optOnboarding: fBool(formData, "optOnboarding"),
+    optRenewal: fBool(formData, "optRenewal"),
+    optPayment: fBool(formData, "optPayment"),
+    optClaim: fBool(formData, "optClaim"),
+    optAppreciation: fBool(formData, "optAppreciation"),
+    optSatisfaction: fBool(formData, "optSatisfaction"),
+    optOffboarding: fBool(formData, "optOffboarding"),
+  };
+  await prisma.clientCommunicationPreferences.upsert({
+    where: { clientId },
+    update: data,
+    create: { clientId, ...data },
+  });
+  await audit({ userId: session.userId, action: "PORTAL_COMM_PREFS_UPDATE", entityType: "Client", entityId: clientId });
+  redirect(`/portal/preferences?toast=${encodeURIComponent("Email preferences saved")}`);
 }
 
 /**

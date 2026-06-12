@@ -19,6 +19,9 @@ import type {
   QuoteStatus,
   RenewalStatus,
   TaskStatus,
+  TouchpointCategory,
+  TouchpointStatus,
+  TouchpointTrigger,
 } from "@prisma/client";
 
 export const LOB_LABELS: Record<LineOfBusiness, string> = {
@@ -289,6 +292,59 @@ export function leadStatusTone(s: LeadStatus): BadgeTone {
     case "QUALIFIED": return "amber";
     case "CONVERTED": return "green";
     case "LOST": return "red";
+  }
+}
+
+// ── Touchpoint engine ────────────────────────────────────────────────
+
+export const TOUCHPOINT_CATEGORY_LABELS: Record<TouchpointCategory, string> = {
+  ONBOARDING: "Onboarding",
+  RENEWAL: "Renewal",
+  PAYMENT: "Payment",
+  CLAIM: "Claim",
+  APPRECIATION: "Appreciation",
+  SATISFACTION: "Satisfaction",
+  OFFBOARDING: "Offboarding",
+};
+
+export const TOUCHPOINT_STATUS_LABELS: Record<TouchpointStatus, string> = {
+  PENDING: "Needs approval",
+  APPROVED: "Approved",
+  SENT: "Sent",
+  SKIPPED: "Skipped",
+  FAILED: "Failed",
+};
+
+export const TOUCHPOINT_TRIGGER_LABELS: Record<TouchpointTrigger, string> = {
+  RENEWAL_RELATIVE: "Renewal-relative",
+  PAYMENT_DUE_RELATIVE: "Payment-due relative",
+  BIRTHDAY: "Birthday",
+  POLICY_ANNIVERSARY: "Policy anniversary",
+  HOLIDAY: "Holiday",
+  TENURE_MILESTONE: "Tenure milestone",
+  LIFECYCLE_EVENT: "Lifecycle event",
+  MANUAL: "Manual",
+};
+
+export function touchpointCategoryTone(c: TouchpointCategory): BadgeTone {
+  switch (c) {
+    case "ONBOARDING": return "blue";
+    case "RENEWAL": return "violet";
+    case "PAYMENT": return "amber";
+    case "CLAIM": return "red";
+    case "APPRECIATION": return "green";
+    case "SATISFACTION": return "blue";
+    case "OFFBOARDING": return "slate";
+  }
+}
+
+export function touchpointStatusTone(s: TouchpointStatus): BadgeTone {
+  switch (s) {
+    case "PENDING": return "amber";
+    case "APPROVED": return "blue";
+    case "SENT": return "green";
+    case "SKIPPED": return "slate";
+    case "FAILED": return "red";
   }
 }
 

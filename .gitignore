@@ -23,6 +23,9 @@ yarn-error.log*
 .env.local
 .env*.local
 
+# cron wrapper holds the CRON_KEY secret — generated per host, never committed
+/scripts/run-touchpoints.cmd
+
 # uploads (user documents, never committed)
 /uploads
 

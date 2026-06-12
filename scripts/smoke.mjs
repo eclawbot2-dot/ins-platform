@@ -204,6 +204,43 @@ for (const [list, pattern] of [
   const id = (await list.text()).match(/href="\/clients\/(c[a-z0-9]{15,})"/)?.[1];
   const body = id ? await (await req(`/clients/${id}`)).text() : "";
   check("client 360 shows X-dates card", body.includes("X-dates"));
+  check("client 360 shows communication timeline + preferences", body.includes("Communication timeline") && body.includes("Communication preferences"));
+}
+
+// 4d. Touchpoint engine — staff dashboard + journeys + dry-run cron.
+{
+  const dash = await req("/touchpoints");
+  const dashBody = dash.status === 200 ? await dash.text() : "";
+  check("GET /touchpoints", dash.status === 200 && dashBody.includes("Needs approval"), `status ${dash.status}`);
+
+  const tpls = await req("/touchpoints/templates");
+  const tplBody = tpls.status === 200 ? await tpls.text() : "";
+  check("GET /touchpoints/templates", tpls.status === 200 && tplBody.includes("onboard-welcome"), `status ${tpls.status}`);
+
+  // Cron route: dryRun=1 counts due but sends nothing. Needs the CRON_KEY.
+  const cronKey = process.env.CRON_KEY;
+  if (cronKey) {
+    const dry = await fetch(`${BASE}/api/cron/touchpoints?dryRun=1`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cron-key": cronKey },
+      body: "{}",
+    });
+    const dryJson = dry.status === 200 ? await dry.json() : {};
+    check(
+      "POST /api/cron/touchpoints?dryRun=1 (counts due, sends nothing)",
+      dry.status === 200 && dryJson.ok === true && dryJson.dryRun === true && dryJson.send?.sent === 0,
+      `status ${dry.status}`,
+    );
+    // A wrong key is rejected.
+    const bad = await fetch(`${BASE}/api/cron/touchpoints?dryRun=1`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cron-key": "wrong" },
+      body: "{}",
+    });
+    check("cron route rejects bad X-Cron-Key", bad.status === 401, `status ${bad.status}`);
+  } else {
+    check("cron dry-run (skipped — CRON_KEY not in env)", true);
+  }
 }
 
 // 5. Public lead intake (keyed) + auth rejection.
@@ -264,6 +301,17 @@ check(
     (anonPortal.headers.get("location") ?? "").includes("/portal/login"),
 );
 
+// Unsubscribe is token-authed and needs NO login (CAN-SPAM one-click).
+{
+  const u = await fetch(`${BASE}/unsubscribe?token=smoke-unknown-token`, { redirect: "manual" });
+  const body = u.status === 200 ? await u.text() : "";
+  check(
+    "GET /unsubscribe?token=… renders without login (200)",
+    u.status === 200 && body.includes("preferences"),
+    `status ${u.status}`,
+  );
+}
+
 // 9. Portal login (seeded CLIENT user).
 const pCsrf = await (await req("/api/auth/csrf")).json();
 const pLogin = await req("/api/auth/callback/credentials", {
@@ -291,6 +339,7 @@ for (const [path, marker] of [
   ["/portal/claims", "CLM-"],
   ["/portal/claims/new", "Date of loss"],
   ["/portal/certificates", "Certificate holder name"],
+  ["/portal/preferences", "Email preferences"],
   ["/portal/profile", "Harborview"],
 ]) {
   const res = await req(path);

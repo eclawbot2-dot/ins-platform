@@ -20,6 +20,7 @@ import {
   Receipt,
   BarChart3,
   Settings,
+  HeartHandshake,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -63,6 +64,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/compliance", label: "Compliance", icon: ShieldCheck },
       { href: "/team", label: "Team", icon: UsersRound },
       { href: "/marketing", label: "Marketing", icon: Megaphone },
+      { href: "/touchpoints", label: "Touchpoints", icon: HeartHandshake },
       { href: "/reports", label: "Reports", icon: BarChart3 },
     ],
   },

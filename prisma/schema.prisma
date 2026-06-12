@@ -254,6 +254,42 @@ enum EndorsementRequestSource {
   PORTAL
 }
 
+// ── Customer-appreciation / lifecycle-touchpoint engine ──────────────
+
+enum TouchpointCategory {
+  ONBOARDING
+  RENEWAL
+  PAYMENT
+  CLAIM
+  APPRECIATION
+  SATISFACTION
+  OFFBOARDING
+}
+
+enum TouchpointChannel {
+  EMAIL
+  SMS // dormant — SMS gated on smsConsentAt + quiet hours
+}
+
+enum TouchpointTrigger {
+  RENEWAL_RELATIVE
+  PAYMENT_DUE_RELATIVE
+  BIRTHDAY
+  POLICY_ANNIVERSARY
+  HOLIDAY
+  TENURE_MILESTONE
+  LIFECYCLE_EVENT
+  MANUAL
+}
+
+enum TouchpointStatus {
+  PENDING
+  APPROVED
+  SENT
+  SKIPPED
+  FAILED
+}
+
 model EvidenceOfProperty {
   id              String            @id @default(cuid())
   eoiNumber       String            @unique
@@ -412,6 +448,7 @@ model User {
   documents          Document[]
   notifications      Notification[]
   auditLogs          AuditLog[]
+  approvedTouchpoints ScheduledTouchpoint[] @relation("TouchpointApprover")
 }
 
 model PasswordResetToken {
@@ -518,6 +555,7 @@ model Client {
   businessName String?
   email        String?
   phone        String?
+  preferredName String?     // warm salutation used in lifecycle touchpoints
   addressLine1 String?
   addressLine2 String?
   city         String?
@@ -550,6 +588,9 @@ model Client {
   portalUsers   User[]         @relation("ClientPortalUsers")
   portalInvites PortalInvite[]
   priorPolicies PriorPolicy[]
+  // Customer-appreciation / lifecycle-touchpoint engine.
+  scheduledTouchpoints ScheduledTouchpoint[]
+  commPrefs            ClientCommunicationPreferences?
 
   @@index([name])
   @@index([status])
@@ -1320,4 +1361,79 @@ model WorkspaceConnection {
   capGmail    Boolean  @default(true)
   capCalendar Boolean  @default(true)
   updatedAt   DateTime @updatedAt
+}
+
+// ── Customer-appreciation / lifecycle-touchpoint engine ──────────────
+
+/// A reusable, warm/professional outreach template. The evaluator scans
+/// the book per active template and schedules ScheduledTouchpoint rows.
+model TouchpointTemplate {
+  id              String             @id @default(cuid())
+  key             String             @unique
+  name            String
+  category        TouchpointCategory
+  channel         TouchpointChannel  @default(EMAIL)
+  triggerType     TouchpointTrigger
+  offsetDays      Int                @default(0) // signed: -90 = 90 days before anchor
+  holidayKey      String? // for HOLIDAY triggers → date table for the year
+  tenureMonths    Int? // for TENURE_MILESTONE triggers
+  subject         String
+  body            String // text with {{merge}} fields
+  audienceFilter  Json? // optional narrowing (status, type, lob…)
+  active          Boolean            @default(true)
+  requiresApproval Boolean           @default(false)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  scheduled ScheduledTouchpoint[]
+}
+
+/// A single scheduled/sent communication — this IS the communication log
+/// (one table). The @unique idempotencyKey guarantees a given anchor is
+/// never double-scheduled / double-sent across re-runs.
+model ScheduledTouchpoint {
+  id              String             @id @default(cuid())
+  clientId        String
+  client          Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  templateKey     String
+  template        TouchpointTemplate @relation(fields: [templateKey], references: [key], onDelete: Cascade)
+  channel         TouchpointChannel  @default(EMAIL)
+  status          TouchpointStatus   @default(PENDING)
+  scheduledFor    DateTime
+  sentAt          DateTime?
+  toAddress       String?
+  renderedSubject String?
+  renderedBody    String?
+  relatedType     String? // "Policy" | "Invoice" | "Claim" | "Referral" …
+  relatedId       String?
+  idempotencyKey  String             @unique
+  failureReason   String?
+  approvedById    String?
+  approvedBy      User?              @relation("TouchpointApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdAt       DateTime           @default(now())
+
+  @@index([clientId, createdAt]) // 360 timeline
+  @@index([status, scheduledFor]) // queue + send sweep
+}
+
+/// Per-client communication consent + channel preferences. CAN-SPAM /
+/// opt-out is enforced in the ENGINE, not just the UI.
+model ClientCommunicationPreferences {
+  id               String            @id @default(cuid())
+  clientId         String            @unique
+  client           Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  doNotContact     Boolean           @default(false)
+  optOnboarding    Boolean           @default(true)
+  optRenewal       Boolean           @default(true)
+  optPayment       Boolean           @default(true)
+  optClaim         Boolean           @default(true)
+  optAppreciation  Boolean           @default(true)
+  optSatisfaction  Boolean           @default(true)
+  optOffboarding   Boolean           @default(true)
+  preferredChannel TouchpointChannel @default(EMAIL)
+  quietHoursStart  Int               @default(8)
+  quietHoursEnd    Int               @default(20)
+  unsubscribeToken String            @unique @default(cuid())
+  smsConsentAt     DateTime?
+  updatedAt        DateTime          @updatedAt
 }

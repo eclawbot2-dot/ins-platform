@@ -8,7 +8,14 @@ import { audit } from "@/lib/audit";
 import { fStr, fStrOpt, fNumOpt, fDate } from "@/lib/form";
 import { nextRefNumber, REF_PREFIXES } from "@/lib/domain/numbers";
 import { addDays } from "@/lib/domain/dates";
+import { scheduleTouchpoint } from "@/lib/touchpoint-engine";
 import type { ClaimStatus } from "@prisma/client";
+
+/** On a new claim: acknowledge now + a gentle check-in in a few days. */
+export async function scheduleClaimOpenedTouchpoints(clientId: string, claimId: string): Promise<void> {
+  await scheduleTouchpoint("claim-ack", clientId, { related: { type: "Claim", id: claimId }, anchorKey: `ack:${claimId}` });
+  await scheduleTouchpoint("claim-checkin", clientId, { related: { type: "Claim", id: claimId }, anchorKey: `checkin:${claimId}`, scheduledFor: addDays(new Date(), 5) });
+}
 
 /** FNOL — first notice of loss. */
 export async function createClaim(formData: FormData) {
@@ -48,6 +55,7 @@ export async function createClaim(formData: FormData) {
     },
   });
   await audit({ userId: session.userId, action: "CLAIM_FNOL", entityType: "Claim", entityId: claim.id, detail: claimNumber });
+  await scheduleClaimOpenedTouchpoints(policy.clientId, claim.id);
   redirect(`/claims/${claim.id}?toast=${encodeURIComponent(`Claim ${claimNumber} reported`)}`);
 }
 
@@ -71,11 +79,17 @@ export async function updateClaim(id: string, formData: FormData) {
 
 export async function setClaimStatus(id: string, status: ClaimStatus) {
   const session = await requireSession();
-  await prisma.claim.update({
+  const claim = await prisma.claim.update({
     where: { id },
     data: { status, closedAt: status === "CLOSED" ? new Date() : null },
+    select: { clientId: true },
   });
   await audit({ userId: session.userId, action: "CLAIM_STATUS", entityType: "Claim", entityId: id, detail: status });
+  // Closing a claim → a warm "resolved" note + a post-claim satisfaction ask.
+  if (status === "CLOSED") {
+    await scheduleTouchpoint("claim-closed", claim.clientId, { related: { type: "Claim", id }, anchorKey: `closed:${id}` });
+    await scheduleTouchpoint("csat-postclaim", claim.clientId, { related: { type: "Claim", id }, anchorKey: `csat:${id}`, scheduledFor: addDays(new Date(), 3) });
+  }
   revalidatePath(`/claims/${id}`);
   redirect(`/claims/${id}?toast=${encodeURIComponent(`Status: ${status.replace(/_/g, " ").toLowerCase()}`)}`);
 }

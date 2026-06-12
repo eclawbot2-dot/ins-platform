@@ -11,6 +11,7 @@ const LINKS: Array<{ href: string; label: string; exact?: boolean }> = [
   { href: "/portal/invoices", label: "Invoices" },
   { href: "/portal/claims", label: "Claims" },
   { href: "/portal/certificates", label: "Certificates" },
+  { href: "/portal/preferences", label: "Preferences" },
   { href: "/portal/profile", label: "Profile" },
 ];
 

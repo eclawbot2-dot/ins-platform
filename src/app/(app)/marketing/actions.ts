@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 import { fStr, fStrOpt, fNumOpt, fDate, fEnum } from "@/lib/form";
+import { scheduleTouchpoint } from "@/lib/touchpoint-engine";
 import type { CampaignChannel } from "@prisma/client";
 
 const CHANNELS: CampaignChannel[] = [
@@ -36,15 +37,18 @@ export async function deleteCampaign(id: string) {
 
 export async function addReferral(formData: FormData) {
   await requireSession();
-  await prisma.referral.create({
+  const clientId = fStrOpt(formData, "clientId");
+  const referral = await prisma.referral.create({
     data: {
       referrerName: fStr(formData, "referrerName") || "Unknown referrer",
-      clientId: fStrOpt(formData, "clientId"),
+      clientId,
       leadId: fStrOpt(formData, "leadId"),
       rewardAmount: fNumOpt(formData, "rewardAmount"),
       notes: fStrOpt(formData, "notes"),
     },
   });
+  // Thank a referring CLIENT in real time (only when the referrer is a known client).
+  if (clientId) await scheduleTouchpoint("referral-thankyou", clientId, { related: { type: "Referral", id: referral.id }, anchorKey: `referral:${referral.id}` });
   revalidatePath("/marketing");
   redirect(`/marketing?toast=${encodeURIComponent("Referral recorded")}`);
 }
