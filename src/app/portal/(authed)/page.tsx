@@ -88,12 +88,12 @@ export default async function PortalDashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((s) => (
-          <Link key={s.label} href={s.href} className="card-pad transition hover:border-navy-300 hover:shadow">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{s.label}</div>
-                <div className="mt-1 text-2xl font-semibold text-navy-700">{s.value}</div>
-                <div className="mt-1 text-xs text-slate-500">{s.sub}</div>
+          <Link key={s.label} href={s.href} className="card-pad min-w-0 overflow-hidden transition hover:border-navy-300 hover:shadow">
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="break-words text-xs font-semibold uppercase tracking-wide text-slate-500">{s.label}</div>
+                <div title={s.value} className="mt-1 truncate text-xl font-semibold tabular-nums text-navy-700 md:text-2xl">{s.value}</div>
+                <div className="mt-1 break-words text-xs text-slate-500">{s.sub}</div>
               </div>
               <s.icon className="h-5 w-5 shrink-0 text-gold-500" />
             </div>
