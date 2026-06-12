@@ -7,6 +7,7 @@ import clsx from "clsx";
 const LINKS: Array<{ href: string; label: string; exact?: boolean }> = [
   { href: "/portal", label: "Dashboard", exact: true },
   { href: "/portal/policies", label: "Policies" },
+  { href: "/portal/checkup", label: "Coverage Checkup" },
   { href: "/portal/documents", label: "Documents" },
   { href: "/portal/invoices", label: "Invoices" },
   { href: "/portal/claims", label: "Claims" },

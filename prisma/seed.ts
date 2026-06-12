@@ -1405,6 +1405,115 @@ async function main() {
     },
   });
 
+  // ── AI Compare / coverage-analysis demo rows (Wave D) ───────────────
+  // Seed a few PolicyAnalysis rows so every surface renders: one public
+  // ANALYZED-with-gaps (powers the public results + staff queue), one
+  // CLIENT_PORTAL analyzed for Harborview (the portal checkup demo), and
+  // one PENDING public submission (the manual-review path). The gap/rec
+  // JSON mirrors the shapes produced by the deterministic gap engine.
+  const harborClient = clients[1]; // Harborview Builders LLC (portal demo)
+
+  // A realistic under-insured personal-auto report (grade C).
+  const autoGaps = {
+    lineOfBusiness: "AUTO",
+    score: 68,
+    grade: "C",
+    gapCount: 3,
+    findings: [
+      { key: "auto-bi-low", kind: "UNDER_LIMIT", severity: "high", code: "BI", label: "Bodily injury liability",
+        detail: "Bodily-injury limits are below the 100/300 the agency recommends. A serious at-fault accident can easily exceed low state-minimum limits, exposing personal assets.",
+        found: "50/100", recommended: "≥ 100/300" },
+      { key: "auto-um-missing", kind: "MISSING", severity: "high", code: "UM", label: "Uninsured/underinsured motorist",
+        detail: "No uninsured/underinsured motorist coverage found. Roughly 1 in 8 drivers is uninsured — UM/UIM pays YOUR injuries when an at-fault driver can't.", recommended: "Match BI limits" },
+      { key: "auto-med-missing", kind: "MISSING", severity: "low", code: "MED", label: "Medical payments",
+        detail: "No medical-payments coverage — a low-cost add-on that covers medical bills for you and your passengers regardless of fault.", recommended: "$5,000" },
+      { key: "auto-bi-okp", kind: "PRESENT_OK", severity: "info", code: "PD", label: "Property damage liability",
+        detail: "Property-damage liability is present." },
+    ],
+  };
+  const autoRecs = {
+    recommendations: [
+      { key: "auto-bi-low", title: "Increase Bodily injury liability to ≥ 100/300", severity: "high",
+        detail: "Bodily-injury limits are below the 100/300 the agency recommends." },
+      { key: "auto-um-missing", title: "Add Uninsured/underinsured motorist", severity: "high",
+        detail: "Roughly 1 in 8 drivers is uninsured — UM/UIM pays your injuries when an at-fault driver can't." },
+      { key: "auto-med-missing", title: "Add Medical payments", severity: "low",
+        detail: "A low-cost add-on that covers medical bills regardless of fault." },
+    ],
+    crossSell: [
+      { key: "home-from-auto", lob: "HOME", title: "Cross-sell homeowners", priority: 2, estPremium: 2400,
+        rationale: "Auto-only client — bundle a homeowners policy for a multi-policy discount and stickier retention." },
+    ],
+  };
+
+  await prisma.policyAnalysis.create({
+    data: {
+      source: "PUBLIC_UPLOAD",
+      status: "ANALYZED",
+      uploaderName: "Morgan Reyes",
+      uploaderEmail: "morgan.reyes@example.com",
+      lineOfBusiness: "AUTO",
+      carrierName: "Progressive",
+      summaryText:
+        "This Personal Auto policy with Progressive scores 68/100 (grade C) — adequate but with meaningful gaps to close. Your liability limits are on the low side at 50/100, and there's no uninsured-motorist coverage, which leaves you exposed if an at-fault driver can't pay. Raising your liability to 100/300 and adding UM/UIM are inexpensive moves that meaningfully improve your protection. Let's review your options together.",
+      score: 68,
+      gapsJson: autoGaps,
+      recommendationsJson: autoRecs,
+      extractedJson: {
+        lineOfBusiness: "AUTO", carrierName: "Progressive", namedInsureds: ["Morgan Reyes"],
+        coverages: [
+          { code: "BI", label: "Bodily injury", limitText: "50/100" },
+          { code: "PD", label: "Property damage", limitAmount: 50000 },
+        ], vehicles: ["2021 Honda CR-V"],
+      },
+    },
+  });
+
+  // A clean homeowners checkup for the portal client (grade A).
+  if (harborClient) {
+    await prisma.policyAnalysis.create({
+      data: {
+        source: "CLIENT_PORTAL",
+        status: "ANALYZED",
+        clientId: harborClient.id,
+        lineOfBusiness: "GENERAL_LIABILITY",
+        carrierName: "Travelers",
+        summaryText:
+          "This General Liability policy with Travelers scores 88/100 (grade B) — solid, with a few improvements worth considering. Your per-occurrence and aggregate limits meet the $1M/$2M most contracts require. Consider confirming products/completed-operations coverage is adequate for your construction work. Overall this is well-rounded protection.",
+        score: 88,
+        gapsJson: {
+          lineOfBusiness: "GENERAL_LIABILITY", score: 88, grade: "B", gapCount: 1,
+          findings: [
+            { key: "gl-occ-okp", kind: "PRESENT_OK", severity: "info", code: "GL_OCC", label: "Each occurrence", detail: "Per-occurrence GL limit meets the $1M baseline." },
+            { key: "tpl-GENERAL_LIABILITY-GL_DAMPREM", kind: "MISSING", severity: "low", code: "GL_DAMPREM", label: "Damage to rented premises",
+              detail: "Damage to rented premises is part of a complete general liability policy but was not found on this one. Confirm whether it was declined or simply not listed." },
+          ],
+        },
+        recommendationsJson: {
+          recommendations: [
+            { key: "tpl-GENERAL_LIABILITY-GL_DAMPREM", title: "Add Damage to rented premises", severity: "low",
+              detail: "Confirm whether this common GL coverage was declined or simply not listed." },
+          ],
+          crossSell: [
+            { key: "cyber-roundout", lob: "CYBER", title: "Add cyber liability", priority: 4, estPremium: 2200,
+              rationale: "No cyber line on a commercial account — nearly every business has a data/ransomware exposure." },
+          ],
+        },
+      },
+    });
+  }
+
+  // A pending public submission (manual-review path before any AI key).
+  await prisma.policyAnalysis.create({
+    data: {
+      source: "PUBLIC_UPLOAD",
+      status: "PENDING",
+      uploaderName: "Casey Lin",
+      uploaderEmail: "casey.lin@example.com",
+      lineOfBusiness: "HOME",
+    },
+  });
+
   // ── Summary ────────────────────────────────────────────────────────
   const counts = await prisma.$transaction([
     prisma.user.count(), prisma.carrier.count(), prisma.client.count(), prisma.policy.count(),

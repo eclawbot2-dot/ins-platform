@@ -61,8 +61,47 @@ npm run start               # serves on port 3220
 | Team (users, roles, production) | `/team` |
 | Marketing (campaigns, source ROI, referrals) | `/marketing` |
 | Reports (book, production, retention, trend, commission revenue, funnel — CSV everywhere) | `/reports` |
+| **AI Compare / coverage analysis** (see below) | `/compare` `/tools/coverage-analysis` `/portal/checkup` |
 | Settings (profile, integrations, templates, intake keys, audit log) | `/settings` |
 | **Client portal** (see below) | `/portal` |
+
+## AI Compare / coverage analysis
+
+The marquee product capability: a complete pipeline (upload → extract →
+summarize → gap analysis → recommendations → lead/record) built on the Claude
+API. It is both a **lead-gen funnel** and a **staff/client tool**.
+
+| Surface | Route | What it does |
+| --- | --- | --- |
+| Public funnel | `/compare`, `/coverage-checkup` | Anyone uploads a dec page (PDF/image) or pastes details + contact info → instant coverage report. Creates a Lead (`source=coverage-checkup`) + staff task. Posts to `POST /api/public/compare` (rate-limited + honeypot). |
+| Public results | `/compare/[id]` | The submitter's report (summary + gaps + recommendations + "talk to an agent" CTA), reachable via the unguessable id. Only `PUBLIC_UPLOAD` rows are exposed. |
+| Staff tool | `/tools/coverage-analysis` (+ `/[id]`) | Queue of public submissions; analyze a client's **stored** coverage schedule (no re-upload); upload/key a prospect policy; one-click **create opportunity** from the recommendations. |
+| Portal checkup | `/portal/checkup` (+ `/[id]`) | Authed clients run a checkup on their own policies (clientId-scoped) → personalized gap report + **request a review** (→ staff task). |
+
+**How it works.** `src/lib/ai/` holds the pipeline:
+- `coverage-gap-rules.ts` — the **deterministic** gap engine. Compares
+  extracted coverages against the per-LOB Wave-A coverage templates +
+  best-practice thresholds (auto liability minimums, UM/UIM, homeowners
+  replacement-cost / water-backup, umbrella when assets warrant, GL limits…)
+  → MISSING / UNDER_LIMIT findings with severity, a 0–100 score, and a letter
+  grade. **Pure — no key, no network.** This is the backbone; the rules give
+  the report real value even in manual-review mode.
+- `extract.ts` — AI extraction via `client.messages.parse()` +
+  `zodOutputFormat` (structured output). PDF/image via `document`/`image`
+  content blocks. **Never throws** — returns a typed result.
+- `coverage-analysis.ts` — orchestrates rules + an AI narrative summary
+  (falls back to a deterministic template summary when no key).
+- `analysis-service.ts` — persists a `PolicyAnalysis` row and wires the
+  upload/keyed paths.
+
+**Activation.** Set `ANTHROPIC_API_KEY` (model `claude-opus-4-8`, override with
+`AI_MODEL`; billed per use) to light up AI extraction + narrative
+**automatically** — no code change. **Until then it runs in manual-review
+mode:** uploads are stored + queued for staff, and the deterministic gap rules
+still produce a full report once coverages are keyed (or pulled from a client's
+stored `Coverage` rows). The pipeline always degrades gracefully — a missing
+key or an API failure routes to PENDING/MANUAL_REVIEW, never an error to the
+user.
 
 ## Client portal
 
@@ -73,6 +112,7 @@ login) and get a mobile-first portal scoped to THEIR client record only:
 | --- | --- |
 | `/portal` | Dashboard — active policies, next renewal, open invoices/claims, agency contact card |
 | `/portal/policies` (+ `/[id]`) | Coverage, premium, carrier, term, endorsements, shared documents |
+| `/portal/checkup` (+ `/[id]`) | Run a coverage checkup on your own policies → gap report + request a review |
 | `/portal/documents` | Only documents staff marked **visibleToClient** (download via `/api/portal/documents/[id]`) |
 | `/portal/invoices` | Open/paid invoices with Xero **Pay now** links when present (no direct card charges) |
 | `/portal/claims` (+ `/new`, `/[id]`) | Claim tracking + FNOL form (creates a `REPORTED` claim + staff task) |

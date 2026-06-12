@@ -449,6 +449,7 @@ model User {
   notifications      Notification[]
   auditLogs          AuditLog[]
   approvedTouchpoints ScheduledTouchpoint[] @relation("TouchpointApprover")
+  policyAnalyses     PolicyAnalysis[]       @relation("PolicyAnalysisCreator")
 }
 
 model PasswordResetToken {
@@ -591,6 +592,8 @@ model Client {
   // Customer-appreciation / lifecycle-touchpoint engine.
   scheduledTouchpoints ScheduledTouchpoint[]
   commPrefs            ClientCommunicationPreferences?
+  // AI Compare / coverage-analysis tool.
+  policyAnalyses       PolicyAnalysis[]
 
   @@index([name])
   @@index([status])
@@ -658,6 +661,7 @@ model Lead {
   tasks         Task[]
   referrals     Referral[]
   priorPolicies PriorPolicy[]
+  policyAnalyses PolicyAnalysis[]
 
   @@index([status])
   @@index([createdAt])
@@ -1436,4 +1440,67 @@ model ClientCommunicationPreferences {
   unsubscribeToken String            @unique @default(cuid())
   smsConsentAt     DateTime?
   updatedAt        DateTime          @updatedAt
+}
+
+// ── AI Compare / coverage-analysis tool ──────────────────────────────
+// A single coverage-analysis run: someone (public visitor, portal
+// client, or staff) submits a policy (uploaded dec page or keyed
+// coverages); the pipeline extracts → summarizes → gap-analyzes →
+// recommends. Degrades gracefully: with no ANTHROPIC_API_KEY the row is
+// stored PENDING for staff review and the deterministic gap rules still
+// power the gap report.
+
+enum PolicyAnalysisSource {
+  PUBLIC_UPLOAD // anonymous visitor via /compare (lead-gen funnel)
+  CLIENT_PORTAL // authed portal client running a checkup on their policy
+  STAFF // staff running analysis on a client's policy
+}
+
+enum PolicyAnalysisStatus {
+  PENDING // submitted, awaiting extraction (e.g. no AI key yet)
+  EXTRACTING // extraction in progress
+  ANALYZED // summary + gaps + recommendations produced
+  FAILED // extraction/analysis failed
+  MANUAL_REVIEW // routed to staff to key coverages by hand
+}
+
+model PolicyAnalysis {
+  id              String               @id @default(cuid())
+  source          PolicyAnalysisSource
+  status          PolicyAnalysisStatus @default(PENDING)
+
+  // Submitter identity (public funnel) — null when authed.
+  uploaderName    String?
+  uploaderEmail   String?
+
+  // Linked records when known.
+  clientId        String?
+  client          Client?              @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdById     String?
+  createdBy       User?                @relation("PolicyAnalysisCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  // The lead this submission generated (public funnel).
+  leadId          String?
+  lead            Lead?                @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  // Extracted / keyed policy facts.
+  lineOfBusiness  LineOfBusiness?
+  carrierName     String?
+
+  // Pipeline outputs (JSON blobs kept opaque to the DB).
+  extractedJson   Json?
+  summaryText     String?
+  gapsJson        Json?
+  recommendationsJson Json?
+  score           Int?
+
+  // Stored upload (random name under uploads/, like Document.filePath).
+  fileKey         String?
+  fileName        String?
+
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([source, status])
+  @@index([clientId])
+  @@index([createdAt])
 }

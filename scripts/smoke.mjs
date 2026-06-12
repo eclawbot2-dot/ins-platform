@@ -267,6 +267,80 @@ const goodLead = await fetch(`${BASE}/api/public/leads`, {
 const leadJson = goodLead.status === 201 ? await goodLead.json() : {};
 check("public leads accepts valid key", goodLead.status === 201 && leadJson.ok === true, `score ${leadJson.score}`);
 
+// 5b. AI Compare / coverage-checkup — staff tool + public surfaces.
+{
+  // Staff coverage-analysis tool renders with the seeded submission queue
+  // + the analyzed-with-gaps detail page (a real gap report).
+  const tool = await req("/tools/coverage-analysis");
+  const toolBody = tool.status === 200 ? await tool.text() : "";
+  check(
+    "GET /tools/coverage-analysis",
+    tool.status === 200 && toolBody.includes("Coverage analysis") && toolBody.includes("Coverage-checkup submissions"),
+    `status ${tool.status}`,
+  );
+  const analysisId = toolBody.match(/href="\/tools\/coverage-analysis\/(c[a-z0-9]{15,})"/)?.[1];
+  if (analysisId) {
+    const detail = await req(`/tools/coverage-analysis/${analysisId}`);
+    const detailBody = detail.status === 200 ? await detail.text() : "";
+    // At least one of the seeded ANALYZED rows shows the gap report.
+    const ids = [...toolBody.matchAll(/href="\/tools\/coverage-analysis\/(c[a-z0-9]{15,})"/g)].map((m) => m[1]);
+    let gapOk = detail.status === 200 && detailBody.includes("Coverage gaps");
+    if (!gapOk) {
+      for (const id of ids) {
+        const b = await (await req(`/tools/coverage-analysis/${id}`)).text();
+        if (b.includes("Coverage gaps") || b.includes("No significant gaps")) { gapOk = true; break; }
+      }
+    }
+    check("staff coverage-analysis detail shows a gap report", gapOk);
+  } else {
+    check("staff coverage-analysis detail shows a gap report", false, "no analysis link found");
+  }
+}
+
+// 5c. Public /compare landing + /coverage-checkup alias (anonymous, no login).
+{
+  const cmp = await fetch(`${BASE}/compare`, { redirect: "manual" });
+  const cmpBody = cmp.status === 200 ? await cmp.text() : "";
+  check("GET /compare (anonymous, 200)", cmp.status === 200 && cmpBody.includes("Coverage Checkup"), `status ${cmp.status}`);
+  const alias = await fetch(`${BASE}/coverage-checkup`, { redirect: "manual" });
+  check("GET /coverage-checkup alias (anonymous, 200)", alias.status === 200, `status ${alias.status}`);
+
+  // Degraded-mode public submission: multipart with pasted details + honeypot empty.
+  const fd = new FormData();
+  fd.set("name", "Smoke Compare");
+  fd.set("email", "smoke-compare@example.com");
+  fd.set("lineOfBusiness", "AUTO");
+  fd.set("details", "Auto policy, 50/100 BI, no UM, $500 comp/collision. Smoke-test — safe to delete.");
+  const sub = await fetch(`${BASE}/api/public/compare`, { method: "POST", body: fd });
+  const subJson = sub.status === 201 ? await sub.json() : {};
+  check(
+    "POST /api/public/compare creates an analysis (degraded → PENDING/MANUAL_REVIEW) + lead",
+    sub.status === 201 && subJson.ok === true && typeof subJson.analysisId === "string" &&
+      ["PENDING", "MANUAL_REVIEW", "ANALYZED"].includes(subJson.status),
+    `status ${sub.status} → ${subJson.status}`,
+  );
+  // Honeypot trips → silent 200, no analysis.
+  const hp = new FormData();
+  hp.set("name", "Bot");
+  hp.set("website", "http://spam.example");
+  hp.set("details", "spam");
+  const hpRes = await fetch(`${BASE}/api/public/compare`, { method: "POST", body: hp });
+  check("public compare honeypot silently accepts (200)", hpRes.status === 200, `status ${hpRes.status}`);
+
+  // The public results page renders for the just-created analysis.
+  if (subJson.analysisId) {
+    const result = await fetch(`${BASE}/compare/${subJson.analysisId}`, { redirect: "manual" });
+    const rBody = result.status === 200 ? await result.text() : "";
+    check(
+      "GET /compare/[id] public results page (anonymous, 200)",
+      result.status === 200 && rBody.toLowerCase().includes("coverage report"),
+      `status ${result.status}`,
+    );
+  } else {
+    check("GET /compare/[id] public results page (anonymous, 200)", false, "no analysisId");
+  }
+}
+
 // 6. Unauthed page redirects to login.
 const anon = await fetch(`${BASE}/dashboard`, { redirect: "manual" });
 check("anonymous /dashboard redirects", anon.status === 307 || anon.status === 302);
@@ -334,6 +408,7 @@ check(
 for (const [path, marker] of [
   ["/portal", "Active policies"],
   ["/portal/policies", "General Liability"],
+  ["/portal/checkup", "Coverage checkup"],
   ["/portal/documents", "harborview"],
   ["/portal/invoices", "INV-"],
   ["/portal/claims", "CLM-"],
@@ -360,6 +435,25 @@ for (const [path, marker] of [
     id ? "" : "no portal policy link found",
   );
   check("portal policy detail offers a structured change request", body.includes("Request a policy change"));
+}
+
+// 10c. Portal coverage checkup — the seeded CLIENT_PORTAL analysis renders
+// a scoped report with the "request a review" CTA.
+{
+  const list = await req("/portal/checkup");
+  const listBody = list.status === 200 ? await list.text() : "";
+  const id = listBody.match(/href="\/portal\/checkup\/(c[a-z0-9]{15,})"/)?.[1];
+  if (id) {
+    const result = await req(`/portal/checkup/${id}`);
+    const rBody = result.status === 200 ? await result.text() : "";
+    check(
+      "portal checkup result renders a coverage report",
+      result.status === 200 && rBody.toLowerCase().includes("coverage report") && rBody.includes("Request a coverage review"),
+      `status ${result.status}`,
+    );
+  } else {
+    check("portal checkup result renders a coverage report", false, "no portal checkup link found");
+  }
 }
 
 // 11. Role wall: a CLIENT session is terminally blocked from staff surfaces.

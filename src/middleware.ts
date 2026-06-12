@@ -31,10 +31,16 @@ const PUBLIC_PATHS = new Set([
   "/portal/accept-invite",
   "/portal/request-access",
   "/unsubscribe",
+  // AI Compare / coverage-checkup lead-gen funnel (publicly reachable).
+  "/compare",
+  "/coverage-checkup",
 ]);
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_PATHS.has(pathname)) return true;
+  // Public compare results pages (/compare/<id>) are reachable by the
+  // anonymous submitter via the unguessable cuid in the URL.
+  if (pathname.startsWith("/compare/")) return true;
   if (pathname.startsWith("/api/auth/")) return true;
   if (pathname.startsWith("/api/public/")) return true;
   // The cron endpoint authenticates itself via the X-Cron-Key header

@@ -21,6 +21,7 @@ import {
   BarChart3,
   Settings,
   HeartHandshake,
+  Sparkles,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -47,6 +48,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/policies", label: "Policies", icon: FileText },
       { href: "/quotes", label: "Quoting", icon: Calculator },
+      { href: "/tools/coverage-analysis", label: "Coverage analysis", icon: Sparkles },
       { href: "/renewals", label: "Renewals", icon: RefreshCw },
       { href: "/renewals/xdates", label: "X-dates", icon: CalendarClock },
       { href: "/claims", label: "Claims", icon: ShieldAlert },

@@ -72,7 +72,9 @@ curl -s -X POST "http://localhost:3220/api/cron/touchpoints?dryRun=1" \
 | `PORTAL_URL` | no | Base URL for client-facing links (portal invites); default `https://ins.jahdev.com`, switch to `https://portal.taboragency.com` after NS cutover |
 | `LEAD_INTAKE_KEY` | yes | Shared secret for `POST /api/public/leads` |
 | `CRON_KEY` | yes | Shared secret for `POST /api/cron/touchpoints` (the `ins-touchpoints` task). If unset, the route 503s and never runs unauthenticated. |
-| `ANTHROPIC_API_KEY` / `TOUCHPOINT_AI` | no | Both set → dormant AI rewrite of touchpoint copy (`claude-opus-4-8`). Unset → engine runs on seeded templates only; never blocks a send. |
+| `ANTHROPIC_API_KEY` | no | Powers (1) the dormant touchpoint-copy rewrite (with `TOUCHPOINT_AI=on`) and (2) the **AI Compare / coverage-analysis tool** (`/compare`, `/tools/coverage-analysis`, `/portal/checkup`). Set → AI extraction + narrative light up automatically (`claude-opus-4-8`, billed per use). Unset → compare tool runs in **manual-review mode** with the deterministic gap rules still producing full reports; uploads are stored + queued for staff. |
+| `AI_MODEL` | no | Override for the compare-tool model. Default `claude-opus-4-8`. |
+| `TOUCHPOINT_AI` | no | `on` + `ANTHROPIC_API_KEY` set → AI rewrite of touchpoint copy. Unset → seeded templates only; never blocks a send. |
 | `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` | for Xero | See Xero setup below |
 | `GOOGLE_WORKSPACE_SA_KEY_FILE` | no | Default `C:/Users/bot/secrets/ins-workspace-sa.json`; app degrades cleanly when absent |
 | `GOOGLE_WORKSPACE_SUBJECT` | no | DWD impersonation user (can also be set in Settings → Integrations) |
