@@ -205,8 +205,131 @@ enum DocType {
   CLAIM_DOC
   CORRESPONDENCE
   ID_CARD
+  EOI
   LOSS_RUN
   OTHER
+}
+
+// ── Servicing artifacts (Wave B) ─────────────────────────────────────
+
+// Evidence of Property (ACORD 27/28-style) issuance — the property
+// analogue of the COI/Certificate. A lender/mortgagee "holder" + the
+// dwelling/property limits snapshotted at issuance.
+enum EoiKind {
+  EVIDENCE_OF_PROPERTY // ACORD 27 — personal / residential
+  EVIDENCE_COMMERCIAL // ACORD 28 — commercial property
+}
+
+enum EoiHolderInterest {
+  MORTGAGEE
+  LOSS_PAYEE
+  ADDITIONAL_INTEREST
+  LENDER
+}
+
+enum EndorsementRequestType {
+  ADD_VEHICLE
+  REMOVE_VEHICLE
+  ADD_DRIVER
+  REMOVE_DRIVER
+  CHANGE_LIMIT
+  ADD_LIENHOLDER
+  REMOVE_LIENHOLDER
+  ADDRESS_CHANGE
+  ADD_COVERAGE
+  REMOVE_COVERAGE
+  OTHER
+}
+
+enum EndorsementRequestStatus {
+  REQUESTED
+  IN_REVIEW
+  SUBMITTED_TO_CARRIER
+  COMPLETED
+  DECLINED
+}
+
+enum EndorsementRequestSource {
+  STAFF
+  PORTAL
+}
+
+model EvidenceOfProperty {
+  id              String            @id @default(cuid())
+  eoiNumber       String            @unique
+  kind            EoiKind           @default(EVIDENCE_OF_PROPERTY)
+  clientId        String
+  client          Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  policyId        String
+  policy          Policy            @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  // Snapshot of policy/carrier at issuance (the ACORD way).
+  carrierName     String
+  policyNumber    String
+  effectiveDate   DateTime
+  expirationDate  DateTime
+  // Property snapshot.
+  propertyAddress String?
+  coverageALimit  Decimal?          @db.Decimal(14, 2)
+  deductibleText  String?
+  // Lender / mortgagee holder.
+  holderName      String
+  holderInterest  EoiHolderInterest @default(MORTGAGEE)
+  holderAddress   String?
+  loanNumber      String?
+  remarks         String?
+  issuedAt        DateTime          @default(now())
+  issuedById      String
+  issuedBy        User              @relation(fields: [issuedById], references: [id])
+
+  @@index([clientId])
+  @@index([policyId])
+}
+
+model EndorsementRequest {
+  id            String                   @id @default(cuid())
+  policyId      String
+  policy        Policy                   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  requestType   EndorsementRequestType   @default(OTHER)
+  status        EndorsementRequestStatus @default(REQUESTED)
+  source        EndorsementRequestSource @default(STAFF)
+  // Structured detail — free-form summary plus an effective date the
+  // change should take. The realized Endorsement (once processed) links
+  // back here.
+  summary       String
+  payload       String? // optional JSON blob of typed fields
+  effectiveDate DateTime?
+  notes         String?
+  // Who asked: a staff user OR a portal client user.
+  requestedById String?
+  requestedBy   User?                    @relation("EndorsementRequestRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+  // Who processed it (staff).
+  processedById String?
+  processedBy   User?                    @relation("EndorsementRequestProcessor", fields: [processedById], references: [id], onDelete: SetNull)
+  endorsementId String?                  @unique
+  endorsement   Endorsement?             @relation(fields: [endorsementId], references: [id], onDelete: SetNull)
+  declineReason String?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  @@index([status])
+  @@index([policyId])
+}
+
+// Reinstatement record — restoring a CANCELLED policy to ACTIVE.
+model Reinstatement {
+  id              String   @id @default(cuid())
+  policyId        String
+  policy          Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  cancelledAt     DateTime
+  reinstatedAt    DateTime
+  lapseDays       Int      @default(0)
+  reason          String
+  lapseHandling   String? // "no lapse in coverage" / "gap excluded" …
+  reinstatedById  String?
+  reinstatedBy    User?    @relation(fields: [reinstatedById], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+
+  @@index([policyId])
 }
 
 enum LicenseClass {
@@ -282,6 +405,10 @@ model User {
   renewals           Renewal[]
   splits             PolicyProducerSplit[]
   issuedCertificates Certificate[]
+  issuedEois         EvidenceOfProperty[]
+  requestedEndorsements EndorsementRequest[] @relation("EndorsementRequestRequester")
+  processedEndorsements EndorsementRequest[] @relation("EndorsementRequestProcessor")
+  reinstatements     Reinstatement[]
   documents          Document[]
   notifications      Notification[]
   auditLogs          AuditLog[]
@@ -418,6 +545,7 @@ model Client {
   activities    Activity[]
   tasks         Task[]
   certificates  Certificate[]
+  eois          EvidenceOfProperty[]
   referrals     Referral[]
   portalUsers   User[]         @relation("ClientPortalUsers")
   portalInvites PortalInvite[]
@@ -670,6 +798,10 @@ model Policy {
   scheduledItems       ScheduledItem[]
   watercraft           Watercraft[]
   locations            InsuredLocation[]
+  // Wave B: servicing artifacts.
+  eois                 EvidenceOfProperty[]
+  endorsementRequests  EndorsementRequest[]
+  reinstatements       Reinstatement[]
 
   @@index([status])
   @@index([expirationDate])
@@ -684,6 +816,8 @@ model Endorsement {
   description   String
   premiumChange Decimal  @default(0) @db.Decimal(12, 2)
   createdAt     DateTime @default(now())
+
+  request EndorsementRequest?
 }
 
 model PolicyProducerSplit {

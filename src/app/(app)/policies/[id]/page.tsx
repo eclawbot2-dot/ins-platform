@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Plus, RefreshCw } from "lucide-react";
+import { CreditCard, FileBadge, Pencil, Plus, RefreshCw, RotateCcw } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, DetailItem } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -9,23 +9,33 @@ import { ConfirmButton } from "@/components/ui/confirm-button";
 import {
   BILLING_LABELS,
   CLAIM_STATUS_LABELS,
+  ENDORSEMENT_REQUEST_STATUS_LABELS,
+  ENDORSEMENT_REQUEST_TYPE_LABELS,
   LOB_LABELS,
   POLICY_STATUS_LABELS,
   claimStatusTone,
+  endorsementRequestStatusTone,
   lobSegment,
   policyStatusTone,
 } from "@/lib/labels";
 import { fmtMoney, fmtMoneyCents, fmtPct, toNum } from "@/lib/money";
 import { fmtDate, fmtDateInput } from "@/lib/domain/dates";
 import { loadPolicyExisting } from "@/lib/domain/policy-detail";
+import { reinstatementEligibility } from "@/lib/domain/reinstatement";
+import { lobHasIdCard } from "@/lib/documents/id-card";
+import { lobHasEoi } from "@/lib/documents/eoi";
 import { CoverageScheduleTable, RiskItems } from "@/components/policy/coverage-schedule";
 import {
   activatePolicy,
   addEndorsement,
   bindPolicy,
   cancelPolicy,
+  createEndorsementRequest,
   nonRenewPolicy,
+  processEndorsementRequest,
+  reinstatePolicy,
   renewPolicy,
+  setEndorsementRequestStatus,
   setSplits,
 } from "../actions";
 
@@ -47,10 +57,21 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
       splits: { include: { producer: { select: { name: true } } } },
       invoices: { orderBy: { issueDate: "desc" } },
       certificates: { include: { holder: { select: { name: true } } } },
+      endorsementRequests: {
+        orderBy: { createdAt: "desc" },
+        include: { requestedBy: { select: { name: true } }, processedBy: { select: { name: true } } },
+      },
+      reinstatements: { orderBy: { reinstatedAt: "desc" }, include: { reinstatedBy: { select: { name: true } } } },
       documents: true,
     },
   });
   if (!policy) notFound();
+
+  const eligibility = reinstatementEligibility({
+    status: policy.status,
+    cancelledAt: policy.cancelledAt,
+    expirationDate: policy.expirationDate,
+  });
 
   const [producers, existing] = await Promise.all([
     prisma.user.findMany({
@@ -103,6 +124,16 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
                   Non-renew
                 </button>
               </form>
+            ) : null}
+            {lobHasIdCard(policy.lineOfBusiness) ? (
+              <a href={`/api/documents/id-card/${policy.id}`} target="_blank" rel="noopener" className="btn">
+                <CreditCard className="h-4 w-4" /> ID cards
+              </a>
+            ) : null}
+            {lobHasEoi(policy.lineOfBusiness) && (isOpen || policy.status === "RENEWED") ? (
+              <Link href={`/eoi/new?policyId=${policy.id}`} className="btn">
+                <FileBadge className="h-4 w-4" /> Issue EOI
+              </Link>
             ) : null}
             <Link href={`/policies/${policy.id}/edit`} className="btn">
               <Pencil className="h-4 w-4" /> Edit
@@ -214,6 +245,107 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
             ) : null}
           </div>
 
+          <div id="endorsement-requests" className="card-pad">
+            <h2 className="section-title mb-3">Endorsement requests ({policy.endorsementRequests.length})</h2>
+            <ul className="mb-4 space-y-3">
+              {policy.endorsementRequests.map((r) => (
+                <li key={r.id} className="rounded-lg border border-slate-200 p-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium text-slate-800">
+                      {ENDORSEMENT_REQUEST_TYPE_LABELS[r.requestType]} — {r.summary}
+                    </span>
+                    <Badge tone={endorsementRequestStatusTone(r.status)}>{ENDORSEMENT_REQUEST_STATUS_LABELS[r.status]}</Badge>
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {r.source === "PORTAL" ? "Client portal" : r.requestedBy?.name ?? "Staff"} ·{" "}
+                    {fmtDate(r.createdAt)}
+                    {r.effectiveDate ? ` · eff. ${fmtDate(r.effectiveDate)}` : ""}
+                    {r.declineReason ? ` · declined: ${r.declineReason}` : ""}
+                  </div>
+                  {r.notes ? <p className="mt-1 text-xs text-slate-500">{r.notes}</p> : null}
+                  {r.status !== "COMPLETED" && r.status !== "DECLINED" ? (
+                    <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-2">
+                      {["IN_REVIEW", "SUBMITTED_TO_CARRIER"].map((next) =>
+                        next !== r.status ? (
+                          <form key={next} action={setEndorsementRequestStatus.bind(null, r.id)}>
+                            <input type="hidden" name="status" value={next} />
+                            <button type="submit" className="btn btn-sm">
+                              {ENDORSEMENT_REQUEST_STATUS_LABELS[next as keyof typeof ENDORSEMENT_REQUEST_STATUS_LABELS]}
+                            </button>
+                          </form>
+                        ) : null,
+                      )}
+                      <form action={setEndorsementRequestStatus.bind(null, r.id)} className="flex items-end gap-1">
+                        <input type="hidden" name="status" value="DECLINED" />
+                        <input name="declineReason" placeholder="Decline reason" className="input w-40" />
+                        <button type="submit" className="btn btn-sm btn-danger">Decline</button>
+                      </form>
+                      {isOpen ? (
+                        <form action={processEndorsementRequest.bind(null, r.id)} className="flex flex-wrap items-end gap-1">
+                          <input
+                            type="date"
+                            name="effectiveDate"
+                            defaultValue={fmtDateInput(r.effectiveDate ?? new Date())}
+                            className="input w-36"
+                            title="Effective date"
+                          />
+                          <input name="premiumChange" type="number" step="0.01" placeholder="Δ premium/yr" className="input w-28" title="Annualized premium change" />
+                          <button type="submit" className="btn btn-sm btn-primary">Apply endorsement</button>
+                        </form>
+                      ) : null}
+                    </div>
+                  ) : r.endorsementId ? (
+                    <div className="mt-1 text-xs text-emerald-600">Endorsement applied{r.processedBy ? ` by ${r.processedBy.name}` : ""}.</div>
+                  ) : null}
+                </li>
+              ))}
+              {policy.endorsementRequests.length === 0 ? (
+                <li className="text-sm text-slate-400">No endorsement requests.</li>
+              ) : null}
+            </ul>
+            <form action={createEndorsementRequest.bind(null, policy.id)} className="space-y-3 border-t border-slate-100 pt-3">
+              <FormGrid cols={3}>
+                <Field label="Change type" required>
+                  <Select
+                    name="requestType"
+                    options={Object.entries(ENDORSEMENT_REQUEST_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+                  />
+                </Field>
+                <Field label="Requested effective date">
+                  <input type="date" name="effectiveDate" className="input" />
+                </Field>
+                <Field label="Summary" required>
+                  <input name="summary" required className="input" placeholder="Add 2024 Ford Transit (VIN …4821)" />
+                </Field>
+              </FormGrid>
+              <input name="notes" placeholder="Notes (optional)" className="input" />
+              <button type="submit" className="btn btn-sm">
+                <Plus className="h-3.5 w-3.5" /> Log endorsement request
+              </button>
+            </form>
+          </div>
+
+          {policy.reinstatements.length > 0 ? (
+            <div className="card-pad">
+              <h2 className="section-title mb-3">Reinstatement history</h2>
+              <ul className="space-y-2 text-sm">
+                {policy.reinstatements.map((r) => (
+                  <li key={r.id} className="border-b border-slate-100 pb-2 last:border-0">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-slate-800">{r.reason}</span>
+                      <span className="text-xs text-slate-500">{fmtDate(r.reinstatedAt)}</span>
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Cancelled {fmtDate(r.cancelledAt)} · {r.lapseDays}-day lapse
+                      {r.reinstatedBy ? ` · ${r.reinstatedBy.name}` : ""}
+                    </div>
+                    {r.lapseHandling ? <p className="mt-0.5 text-xs text-slate-400">{r.lapseHandling}</p> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           <div className="card-pad">
             <h2 className="section-title mb-3">Producer splits</h2>
             <ul className="mb-3 space-y-1 text-sm">
@@ -302,6 +434,33 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
                   Cancel policy
                 </ConfirmButton>
               </form>
+            </div>
+          ) : null}
+
+          {policy.status === "CANCELLED" ? (
+            <div className="card-pad">
+              <h2 className="section-title mb-3">
+                <RotateCcw className="mr-1 inline h-4 w-4" /> Reinstate policy
+              </h2>
+              {eligibility.eligible ? (
+                <form action={reinstatePolicy.bind(null, policy.id)} className="space-y-3">
+                  <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{eligibility.reason}</p>
+                  <Field label="Reason" required>
+                    <input name="reason" required defaultValue="Payment received — reinstated per carrier" className="input" />
+                  </Field>
+                  <Field label="Lapse handling note">
+                    <input name="lapseHandling" className="input" placeholder="Auto-filled from the computed lapse if blank" />
+                  </Field>
+                  <ConfirmButton
+                    className="btn-primary w-full justify-center"
+                    message="Reinstate this policy to ACTIVE? A reinstatement record will be created."
+                  >
+                    Reinstate to active
+                  </ConfirmButton>
+                </form>
+              ) : (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">{eligibility.reason}</p>
+              )}
             </div>
           ) : null}
 

@@ -4,11 +4,15 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClientUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { fStr, fStrOpt, fDate } from "@/lib/form";
+import { fStr, fStrOpt, fDate, fEnum } from "@/lib/form";
 import { validateFnol } from "@/lib/domain/fnol";
 import { portalPolicyWhere } from "@/lib/domain/portal-scope";
 import { nextRefNumber, REF_PREFIXES } from "@/lib/domain/numbers";
 import { addDays } from "@/lib/domain/dates";
+import { ENDORSEMENT_REQUEST_TYPE_LABELS } from "@/lib/labels";
+import type { EndorsementRequestType } from "@prisma/client";
+
+const ER_TYPES = Object.keys(ENDORSEMENT_REQUEST_TYPE_LABELS) as EndorsementRequestType[];
 
 /**
  * Portal server actions. EVERY action re-derives the clientId from the
@@ -180,4 +184,65 @@ export async function portalRequestProfileChange(formData: FormData) {
   });
 
   redirect(`/portal/profile?toast=${encodeURIComponent("Request sent — we'll confirm once it's updated")}`);
+}
+
+/**
+ * Structured endorsement request from the portal. Scoped to the client's
+ * OWN policy (re-derived from the session); creates an EndorsementRequest
+ * (source PORTAL) plus a staff follow-up task. Replaces the old free-text
+ * "send us a request" note for policy changes.
+ */
+export async function portalRequestEndorsement(policyId: string, formData: FormData) {
+  const session = await requireClientUser();
+  const clientId = session.clientId;
+
+  const policy = await prisma.policy.findFirst({
+    where: { id: policyId, ...portalPolicyWhere(clientId) },
+    select: { id: true, policyNumber: true, csrId: true, producerId: true, client: { select: { name: true } } },
+  });
+  if (!policy) {
+    redirect(`/portal/policies?toastError=${encodeURIComponent("Policy not found")}`);
+  }
+
+  const summary = fStr(formData, "summary");
+  if (summary.length < 5) {
+    redirect(`/portal/policies/${policyId}?toastError=${encodeURIComponent("Tell us what change you need")}`);
+  }
+  const requestType = fEnum(formData, "requestType", ER_TYPES, "OTHER");
+
+  const req = await prisma.endorsementRequest.create({
+    data: {
+      policyId: policy.id,
+      requestType,
+      summary,
+      effectiveDate: fDate(formData, "effectiveDate"),
+      source: "PORTAL",
+      status: "REQUESTED",
+      requestedById: session.userId,
+    },
+  });
+  await prisma.task.create({
+    data: {
+      title: `Portal endorsement request: ${ENDORSEMENT_REQUEST_TYPE_LABELS[requestType]} (${policy.client.name})`,
+      detail: [
+        `Requested via client portal by ${session.user?.email ?? "client user"}.`,
+        `Policy: ${policy.policyNumber}`,
+        `Change: ${summary}`,
+      ].join("\n"),
+      dueDate: addDays(new Date(), 1),
+      priority: "HIGH",
+      policyId: policy.id,
+      clientId,
+      assignedToId: policy.csrId ?? policy.producerId,
+    },
+  });
+  await audit({
+    userId: session.userId,
+    action: "PORTAL_ENDORSEMENT_REQUEST",
+    entityType: "EndorsementRequest",
+    entityId: req.id,
+    detail: summary,
+  });
+
+  redirect(`/portal/policies/${policyId}?toast=${encodeURIComponent("Change request sent — we'll review and confirm shortly")}`);
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, BookOpen, Filter, RefreshCw, TrendingUp, Users, Wallet } from "lucide-react";
+import { BarChart3, BookOpen, Filter, HeartPulse, RefreshCw, Sparkles, TrendingUp, TriangleAlert, Users, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata = { title: "Reports" };
@@ -40,6 +40,24 @@ const REPORTS = [
     icon: Filter,
     title: "Pipeline conversion funnel",
     description: "Opportunities reaching each stage, plus the close rate on decided deals.",
+  },
+  {
+    href: "/reports/loss-ratio",
+    icon: HeartPulse,
+    title: "Loss ratio & profitability",
+    description: "Incurred losses (paid + reserve) vs written premium by carrier and line — high-loss groups flagged.",
+  },
+  {
+    href: "/reports/cross-sell",
+    icon: Sparkles,
+    title: "Cross-sell opportunities",
+    description: "Account-rounding worklist — clients with coverage gaps ranked by premium opportunity.",
+  },
+  {
+    href: "/reports/at-risk",
+    icon: TriangleAlert,
+    title: "At-risk clients",
+    description: "Retention worklist — watch/at-risk clients scored from claims, AR, concentration and churn signals.",
   },
   {
     href: "/commissions/payables",

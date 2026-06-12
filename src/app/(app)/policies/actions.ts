@@ -9,7 +9,9 @@ import { fStr, fStrOpt, fNum, fDate, fEnum, fBool } from "@/lib/form";
 import { expectedCommission, validateSplits } from "@/lib/domain/commissions";
 import { proRataReturn, shortRateReturn, prorateEndorsement } from "@/lib/domain/proration";
 import { addYears } from "@/lib/domain/dates";
+import { reinstatementEligibility, lapseHandlingNote } from "@/lib/domain/reinstatement";
 import { ALL_LOBS } from "@/lib/labels";
+import type { EndorsementRequestType, EndorsementRequestStatus } from "@prisma/client";
 import { coverageTemplateFor } from "@/lib/domain/coverage-templates";
 import { toNum, roundMoney } from "@/lib/money";
 import type { BillingType, LineOfBusiness, PolicyStatus, Prisma } from "@prisma/client";
@@ -412,4 +414,145 @@ export async function renewPolicy(id: string, formData: FormData) {
   });
   await audit({ userId: session.userId, action: "POLICY_RENEW", entityType: "Policy", entityId: id, detail: `→ ${renewal.policyNumber}` });
   redirect(`/policies/${renewal.id}?toast=${encodeURIComponent(`Renewed as ${renewal.policyNumber}`)}`);
+}
+
+// ── Reinstatement (Wave B) ───────────────────────────────────────────
+
+/**
+ * Reinstate a CANCELLED policy back to ACTIVE within the carrier window.
+ * Records a Reinstatement row (lapse + handling note) and audits it.
+ */
+export async function reinstatePolicy(id: string, formData: FormData) {
+  const session = await requireSession();
+  const policy = await prisma.policy.findUnique({ where: { id } });
+  if (!policy) redirect(`/policies?toastError=${encodeURIComponent("Policy not found")}`);
+
+  const eligibility = reinstatementEligibility({
+    status: policy.status,
+    cancelledAt: policy.cancelledAt,
+    expirationDate: policy.expirationDate,
+  });
+  if (!eligibility.eligible) {
+    redirect(`/policies/${id}?toastError=${encodeURIComponent(`Cannot reinstate — ${eligibility.reason}`)}`);
+  }
+
+  const reason = fStr(formData, "reason") || "Reinstated per carrier";
+  const lapseDays = eligibility.lapseDays ?? 0;
+  const handling = fStrOpt(formData, "lapseHandling") ?? lapseHandlingNote(lapseDays);
+
+  await prisma.$transaction([
+    prisma.policy.update({
+      where: { id },
+      data: { status: "ACTIVE", cancelledAt: null, cancellationReason: null },
+    }),
+    prisma.reinstatement.create({
+      data: {
+        policyId: id,
+        cancelledAt: policy.cancelledAt!,
+        reinstatedAt: new Date(),
+        lapseDays,
+        reason,
+        lapseHandling: handling,
+        reinstatedById: session.userId,
+      },
+    }),
+  ]);
+  await audit({
+    userId: session.userId,
+    action: "POLICY_REINSTATE",
+    entityType: "Policy",
+    entityId: id,
+    detail: `${reason} (lapse ${lapseDays}d)`,
+  });
+  redirect(`/policies/${id}?toast=${encodeURIComponent(`Policy reinstated${lapseDays > 0 ? ` — ${lapseDays}-day lapse recorded` : " — no lapse"}`)}`);
+}
+
+// ── Structured endorsement requests (Wave B) ─────────────────────────
+
+const ER_TYPES: EndorsementRequestType[] = [
+  "ADD_VEHICLE", "REMOVE_VEHICLE", "ADD_DRIVER", "REMOVE_DRIVER", "CHANGE_LIMIT",
+  "ADD_LIENHOLDER", "REMOVE_LIENHOLDER", "ADDRESS_CHANGE", "ADD_COVERAGE", "REMOVE_COVERAGE", "OTHER",
+];
+const ER_STATUSES: EndorsementRequestStatus[] = [
+  "REQUESTED", "IN_REVIEW", "SUBMITTED_TO_CARRIER", "COMPLETED", "DECLINED",
+];
+
+/** Staff creates a structured endorsement request on a policy. */
+export async function createEndorsementRequest(policyId: string, formData: FormData) {
+  const session = await requireSession();
+  const policy = await prisma.policy.findUnique({ where: { id: policyId }, select: { id: true } });
+  if (!policy) redirect(`/policies?toastError=${encodeURIComponent("Policy not found")}`);
+  const summary = fStr(formData, "summary");
+  if (!summary) {
+    redirect(`/policies/${policyId}?toastError=${encodeURIComponent("Describe the requested change")}#endorsement-requests`);
+  }
+  const req = await prisma.endorsementRequest.create({
+    data: {
+      policyId,
+      requestType: fEnum(formData, "requestType", ER_TYPES, "OTHER"),
+      summary,
+      effectiveDate: fDate(formData, "effectiveDate"),
+      notes: fStrOpt(formData, "notes"),
+      source: "STAFF",
+      status: "REQUESTED",
+      requestedById: session.userId,
+    },
+  });
+  await audit({ userId: session.userId, action: "ENDORSEMENT_REQUEST_CREATE", entityType: "EndorsementRequest", entityId: req.id, detail: summary });
+  redirect(`/policies/${policyId}?toast=${encodeURIComponent("Endorsement request logged")}#endorsement-requests`);
+}
+
+/** Move an endorsement request along its workflow (review / submit / decline). */
+export async function setEndorsementRequestStatus(requestId: string, formData: FormData) {
+  const session = await requireSession();
+  const status = fEnum(formData, "status", ER_STATUSES, "IN_REVIEW");
+  const req = await prisma.endorsementRequest.findUnique({ where: { id: requestId }, select: { id: true, policyId: true } });
+  if (!req) redirect(`/policies?toastError=${encodeURIComponent("Request not found")}`);
+  await prisma.endorsementRequest.update({
+    where: { id: requestId },
+    data: {
+      status,
+      processedById: session.userId,
+      declineReason: status === "DECLINED" ? fStrOpt(formData, "declineReason") : null,
+    },
+  });
+  await audit({ userId: session.userId, action: "ENDORSEMENT_REQUEST_STATUS", entityType: "EndorsementRequest", entityId: requestId, detail: status });
+  redirect(`/policies/${req.policyId}?toast=${encodeURIComponent("Request updated")}#endorsement-requests`);
+}
+
+/**
+ * Process an endorsement request → spawn the realized Endorsement (reuse
+ * the prorated-premium endorsement path), link it back, and mark the
+ * request COMPLETED.
+ */
+export async function processEndorsementRequest(requestId: string, formData: FormData) {
+  const session = await requireSession();
+  const req = await prisma.endorsementRequest.findUnique({
+    where: { id: requestId },
+    include: { policy: true },
+  });
+  if (!req) redirect(`/policies?toastError=${encodeURIComponent("Request not found")}`);
+  const policy = req.policy;
+  const effectiveDate = fDate(formData, "effectiveDate") ?? req.effectiveDate ?? new Date();
+  const annualized = fNum(formData, "premiumChange");
+  const description = fStr(formData, "description") || req.summary;
+  const prorated = prorateEndorsement(annualized, policy.effectiveDate, policy.expirationDate, effectiveDate);
+  const newPremium = roundMoney(toNum(policy.premium) + prorated);
+
+  const endorsement = await prisma.endorsement.create({
+    data: { policyId: policy.id, effectiveDate, description, premiumChange: prorated },
+  });
+  await prisma.$transaction([
+    prisma.policy.update({
+      where: { id: policy.id },
+      data: { premium: newPremium, commissionAmount: expectedCommission(newPremium, toNum(policy.commissionRatePct)) },
+    }),
+    prisma.endorsementRequest.update({
+      where: { id: requestId },
+      data: { status: "COMPLETED", processedById: session.userId, endorsementId: endorsement.id, effectiveDate },
+    }),
+  ]);
+  await audit({ userId: session.userId, action: "ENDORSEMENT_REQUEST_PROCESS", entityType: "EndorsementRequest", entityId: requestId, detail: description });
+  revalidatePath(`/policies/${policy.id}`);
+  redirect(`/policies/${policy.id}?toast=${encodeURIComponent(`Endorsement applied (prorated $${prorated.toFixed(2)})`)}#endorsement-requests`);
 }

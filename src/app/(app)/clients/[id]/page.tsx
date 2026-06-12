@@ -17,8 +17,11 @@ import {
 import { fmtMoney, fmtMoneyCents, toNum } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
 import { xDateBucket } from "@/lib/domain/xdates";
-import { ALL_LOBS, lobSegment } from "@/lib/labels";
+import { ALL_LOBS, lobSegment, LOB_LABELS as LOB_NAMES } from "@/lib/labels";
 import { inviteState } from "@/lib/domain/portal-invite";
+import { crossSellForClient } from "@/lib/reports/cross-sell";
+import { clientHealthFor } from "@/lib/reports/client-health";
+import { HEALTH_TIER_LABELS, healthTierTone } from "@/lib/domain/client-health";
 import {
   addClientActivity,
   addClientTask,
@@ -56,11 +59,16 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   });
   if (!client) notFound();
 
-  const users = await prisma.user.findMany({
-    where: { active: true, role: { not: "CLIENT" } },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+  const [users, crossSell, healthResult] = await Promise.all([
+    prisma.user.findMany({
+      where: { active: true, role: { not: "CLIENT" } },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    crossSellForClient(client.id),
+    clientHealthFor(client.id),
+  ]);
+  const health = healthResult?.health ?? null;
 
   const activePremium = client.policies
     .filter((p) => p.status === "ACTIVE" || p.status === "BOUND")
@@ -69,7 +77,16 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   return (
     <>
       <PageHeader
-        title={client.name}
+        title={
+          <span className="inline-flex items-center gap-2">
+            {client.name}
+            {health ? (
+              <Badge tone={healthTierTone(health.tier)}>
+                {HEALTH_TIER_LABELS[health.tier]} · {health.score}
+              </Badge>
+            ) : null}
+          </span>
+        }
         description={`${client.type === "BUSINESS" ? "Business" : "Individual"} client · ${CLIENT_STATUS_LABELS[client.status]}`}
         actions={
           <>
@@ -109,6 +126,58 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             </dl>
             {client.notes ? <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{client.notes}</p> : null}
           </div>
+
+          {health ? (
+            <div className="card-pad">
+              <h2 className="section-title mb-3">Retention health</h2>
+              <div className="flex items-center gap-3">
+                <div className="text-3xl font-semibold tabular-nums text-slate-900">{health.score}</div>
+                <div>
+                  <Badge tone={healthTierTone(health.tier)}>{HEALTH_TIER_LABELS[health.tier]}</Badge>
+                  <div className="mt-0.5 text-xs text-slate-500">0–100 health score (higher is healthier)</div>
+                </div>
+              </div>
+              {health.factors.length > 0 ? (
+                <ul className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-xs text-slate-600">
+                  {health.factors
+                    .slice()
+                    .sort((a, b) => b.penalty - a.penalty)
+                    .map((f) => (
+                      <li key={f.label} className="flex items-center justify-between">
+                        <span>{f.label}</span>
+                        <span className="font-medium text-red-500">−{f.penalty}</span>
+                      </li>
+                    ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-xs text-emerald-600">No risk signals — a healthy, well-rounded account.</p>
+              )}
+            </div>
+          ) : null}
+
+          {crossSell.length > 0 ? (
+            <div className="card-pad">
+              <h2 className="section-title mb-1">Cross-sell opportunities</h2>
+              <p className="mb-3 text-xs text-slate-400">Account-rounding gaps from this client&apos;s coverage + X-dates.</p>
+              <ul className="space-y-2">
+                {crossSell.map((s) => (
+                  <li key={s.key} className="border-b border-slate-100 pb-2 last:border-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-slate-800">{s.title}</span>
+                      <span className="shrink-0 text-xs text-slate-500">≈ {fmtMoney(s.estPremium)}/yr</span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-slate-500">{s.rationale}</p>
+                    <Link
+                      href={`/quotes/new?clientId=${client.id}&lineOfBusiness=${s.lob}`}
+                      className="mt-1 inline-block text-xs text-navy-700 hover:underline"
+                    >
+                      Start a {LOB_NAMES[s.lob]} quote →
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="card-pad">
             <h2 className="section-title mb-3">Contacts</h2>

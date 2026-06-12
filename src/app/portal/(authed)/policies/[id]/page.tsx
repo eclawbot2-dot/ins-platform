@@ -10,7 +10,11 @@ import { BILLING_LABELS, LOB_LABELS, POLICY_STATUS_LABELS, policyStatusTone } fr
 import { fmtMoney, fmtMoneyCents } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
 import { loadPolicyExisting } from "@/lib/domain/policy-detail";
+import { lobHasIdCard } from "@/lib/documents/id-card";
+import { ENDORSEMENT_REQUEST_TYPE_LABELS } from "@/lib/labels";
 import { CoverageScheduleTable, RiskItems } from "@/components/policy/coverage-schedule";
+import { Field, FormGrid, Select } from "@/components/ui/form";
+import { portalRequestEndorsement } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +78,16 @@ export default async function PortalPolicyDetailPage({ params }: { params: Promi
 
         <div className="card-pad">
           <h2 className="section-title mb-3">Documents</h2>
+          {lobHasIdCard(policy.lineOfBusiness) ? (
+            <a
+              href={`/api/portal/id-card/${policy.id}`}
+              target="_blank"
+              rel="noopener"
+              className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-navy-600 hover:underline"
+            >
+              <Download className="h-4 w-4" /> Print auto ID card
+            </a>
+          ) : null}
           {policy.documents.length === 0 ? (
             <p className="text-sm text-slate-500">
               No shared documents for this policy yet — contact us if you need a copy of anything.
@@ -134,14 +148,28 @@ export default async function PortalPolicyDetailPage({ params }: { params: Promi
       ) : null}
 
       <div className="card-pad mt-4">
-        <h2 className="section-title mb-2">Need a change?</h2>
-        <p className="text-sm text-slate-600">
-          To add a vehicle, change coverage, or ask a question about this policy,{" "}
-          <Link href="/portal/profile" className="text-navy-600 hover:underline">
-            send us a request
-          </Link>{" "}
-          or call your agency team — changes are not final until confirmed by the agency.
+        <h2 className="section-title mb-2">Request a policy change</h2>
+        <p className="mb-3 text-sm text-slate-600">
+          Add a vehicle, change a limit, update a lienholder, or change your address. We&apos;ll review and submit it to
+          the carrier — changes are not final until confirmed by the agency.
         </p>
+        <form action={portalRequestEndorsement.bind(null, policy.id)} className="space-y-3">
+          <FormGrid>
+            <Field label="Change type" required>
+              <Select
+                name="requestType"
+                options={Object.entries(ENDORSEMENT_REQUEST_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+              />
+            </Field>
+            <Field label="Requested effective date">
+              <input type="date" name="effectiveDate" className="input" />
+            </Field>
+          </FormGrid>
+          <Field label="Details" required>
+            <textarea name="summary" rows={3} required className="input" placeholder="e.g. Add my new 2024 Honda CR-V, VIN 1HG...; remove the 2016 Civic." />
+          </Field>
+          <button type="submit" className="btn-primary">Send change request</button>
+        </form>
       </div>
     </>
   );

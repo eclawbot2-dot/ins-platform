@@ -65,6 +65,8 @@ const pages = [
   ["/claims", "CLM-"],
   ["/certificates", "COI-"],
   ["/certificates/holders", "Meridian"],
+  ["/eoi", "Evidence of Property"],
+  ["/eoi/new", "evidence of property"],
   ["/carriers", "Progressive"],
   ["/documents", "declarations"],
   ["/commissions", "statement"],
@@ -80,6 +82,9 @@ const pages = [
   ["/reports/trend", "renewal"],
   ["/reports/commissions", "Commission"],
   ["/reports/funnel", "funnel"],
+  ["/reports/loss-ratio", "Loss ratio"],
+  ["/reports/cross-sell", "Cross-sell"],
+  ["/reports/at-risk", "At-risk"],
   ["/settings", "Agency profile"],
   ["/settings/integrations", "Xero"],
   ["/settings/templates", "renewal-notice"],
@@ -94,10 +99,72 @@ for (const [path, marker] of pages) {
 }
 
 // 3. CSV exports.
-for (const path of ["/api/reports/book?by=carrier", "/api/reports/production", "/api/reports/payables", "/api/reports/lead-roi"]) {
+for (const path of [
+  "/api/reports/book?by=carrier",
+  "/api/reports/production",
+  "/api/reports/payables",
+  "/api/reports/lead-roi",
+  "/api/reports/loss-ratio?by=carrier",
+  "/api/reports/loss-ratio?by=lob",
+  "/api/reports/cross-sell",
+  "/api/reports/at-risk",
+]) {
   const res = await req(path);
   const text = res.status === 200 ? await res.text() : "";
   check(`CSV ${path}`, res.status === 200 && (res.headers.get("content-type") ?? "").includes("text/csv") && text.length > 10);
+}
+
+// 3b. Servicing artifacts (Wave B).
+{
+  // An auto policy ID card renders printable HTML for staff.
+  const list = await req("/policies?q=PA-");
+  const id = (await list.text()).match(/href="\/policies\/(c[a-z0-9]{15,})"/)?.[1];
+  if (id) {
+    const card = await req(`/api/documents/id-card/${id}`);
+    // Auto policies render the card; non-auto would 404 — try a few until one hits.
+    let ok = card.status === 200 && (await card.text()).includes("IDENTIFICATION CARD");
+    if (!ok) {
+      const ids = [...(await (await req("/policies?q=PA-")).text()).matchAll(/href="\/policies\/(c[a-z0-9]{15,})"/g)].map((m) => m[1]);
+      for (const pid of ids) {
+        const r = await req(`/api/documents/id-card/${pid}`);
+        if (r.status === 200 && (await r.text()).includes("IDENTIFICATION CARD")) { ok = true; break; }
+      }
+    }
+    check("auto ID card renders printable HTML", ok);
+  } else {
+    check("auto ID card renders printable HTML", false, "no auto policy link found");
+  }
+
+  // The EOI detail page renders the seeded evidence of property.
+  const eoiList = await req("/eoi");
+  const eoiId = (await eoiList.text()).match(/href="\/eoi\/(c[a-z0-9]{15,})"/)?.[1];
+  if (eoiId) {
+    const eoi = await req(`/eoi/${eoiId}`);
+    const body = eoi.status === 200 ? await eoi.text() : "";
+    check("EOI detail renders", eoi.status === 200 && body.includes("EVIDENCE OF PROPERTY INSURANCE"));
+  } else {
+    check("EOI detail renders", false, "no EOI link found");
+  }
+
+  // A cancelled policy detail offers the Reinstate action.
+  const cancList = await req("/policies?q=PA-LIB");
+  const cancIds = [...(await cancList.text()).matchAll(/href="\/policies\/(c[a-z0-9]{15,})"/g)].map((m) => m[1]);
+  let reinstateOk = false;
+  for (const pid of cancIds) {
+    const body = await (await req(`/policies/${pid}`)).text();
+    if (body.includes("Reinstate policy")) { reinstateOk = true; break; }
+  }
+  check("cancelled policy shows Reinstate action", reinstateOk, cancIds.length ? "" : "no PA-LIB policy found");
+
+  // A policy detail surfaces the endorsement-request workflow.
+  const erList = await req("/policies?q=CA-PRO");
+  const erIds = [...(await erList.text()).matchAll(/href="\/policies\/(c[a-z0-9]{15,})"/g)].map((m) => m[1]);
+  let erOk = false;
+  for (const pid of erIds) {
+    const body = await (await req(`/policies/${pid}`)).text();
+    if (body.includes("Endorsement requests")) { erOk = true; break; }
+  }
+  check("policy detail shows endorsement requests", erOk, erIds.length ? "" : "no CA-PRO policy found");
 }
 
 // 4. Detail pages (first real record of each list).
@@ -232,7 +299,8 @@ for (const [path, marker] of [
   check(`GET ${path} (client)`, res.status === 200 && found, `status ${res.status}${found ? "" : `, marker "${marker}" missing`}`);
 }
 
-// 10b. Portal policy detail shows the read-only coverage schedule (Wave A).
+// 10b. Portal policy detail shows the read-only coverage schedule (Wave A)
+// + the structured endorsement-request form (Wave B).
 {
   const list = await req("/portal/policies");
   const id = (await list.text()).match(/href="\/portal\/policies\/(c[a-z0-9]{15,})"/)?.[1];
@@ -242,6 +310,7 @@ for (const [path, marker] of [
     body.includes("Coverage schedule"),
     id ? "" : "no portal policy link found",
   );
+  check("portal policy detail offers a structured change request", body.includes("Request a policy change"));
 }
 
 // 11. Role wall: a CLIENT session is terminally blocked from staff surfaces.

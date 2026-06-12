@@ -1011,6 +1011,143 @@ async function main() {
   }
   void holderBank;
 
+  // ── Wave B: servicing artifacts ────────────────────────────────────
+
+  // (a) A recently-cancelled AUTO policy that is REINSTATABLE — cancelled
+  // for non-payment 11 days ago, term still in force. David Chen (client 4).
+  {
+    const effectiveDate = monthsAgo(7, 5);
+    const reinstatable = await prisma.policy.create({
+      data: {
+        policyNumber: `PA-LIB-${seq++}`,
+        clientId: clients[4]!.id,
+        carrierId: carriers["Liberty Mutual"]!.id,
+        lineOfBusiness: "AUTO",
+        status: "CANCELLED",
+        billingType: "DIRECT_BILL",
+        premium: 1690,
+        commissionRatePct: 12,
+        commissionAmount: round2(1690 * 0.12),
+        isNewBusiness: false,
+        effectiveDate,
+        expirationDate: addYearsUtc(effectiveDate, 1),
+        boundAt: effectiveDate,
+        cancelledAt: daysFromNow(-11),
+        cancellationReason: "Non-payment of premium (pro-rata return ≈ $710.00)",
+        producerId: james.id,
+        csrId: molly.id,
+      },
+    });
+    await prisma.coverage.createMany({
+      data: [
+        { policyId: reinstatable.id, code: "BI", label: "Bodily injury liability", limitText: "100/300", sortOrder: 0 },
+        { policyId: reinstatable.id, code: "PD", label: "Property damage liability", limitAmount: 100000, sortOrder: 1 },
+        { policyId: reinstatable.id, code: "COMP", label: "Comprehensive", deductibleAmount: 500, sortOrder: 2 },
+        { policyId: reinstatable.id, code: "COLL", label: "Collision", deductibleAmount: 500, sortOrder: 3 },
+      ],
+    });
+    await prisma.vehicle.create({
+      data: { policyId: reinstatable.id, year: 2019, make: "Subaru", model: "Outback", vin: "4S4BSANC5K3251199", garagingZip: "29483", usage: "commute", annualMiles: 14000 },
+    });
+  }
+
+  // (b) An open endorsement request on the Harborview commercial-auto
+  // policy (the typical "add a truck" workflow), still awaiting processing.
+  const harborCaForReq = policyIds.find((p) => p.policyNumber.startsWith("CA-PRO") && p.clientIdx === 1);
+  if (harborCaForReq) {
+    await prisma.endorsementRequest.create({
+      data: {
+        policyId: harborCaForReq.id,
+        requestType: "ADD_VEHICLE",
+        status: "IN_REVIEW",
+        source: "STAFF",
+        summary: "Add 2024 Ford Transit 350 (VIN 1FTBW2CM4RKA12345) — replacing leased unit",
+        effectiveDate: daysFromNow(3),
+        notes: "Fleet manager emailed the new VIN; awaiting carrier confirmation of rate.",
+        requestedById: james.id,
+      },
+    });
+  }
+  // A portal-sourced request on the Harborview GL (client-portal demo login).
+  const harborGlForReq = policyIds.find((p) => p.policyNumber.startsWith("GL-HAR"));
+  if (harborGlForReq) {
+    await prisma.endorsementRequest.create({
+      data: {
+        policyId: harborGlForReq.id,
+        requestType: "ADD_LIENHOLDER",
+        status: "REQUESTED",
+        source: "PORTAL",
+        summary: "Add Meridian General Contractors as additional insured for Project 2310",
+        effectiveDate: daysFromNow(7),
+      },
+    });
+  }
+
+  // (c) Evidence of Property issued to the Simmons mortgagee (the
+  // property analogue of the seeded COI).
+  const simmonsHomeEoi = policyIds.find((p) => p.policyNumber.startsWith("HO-TRA") && p.clientIdx === 0);
+  if (simmonsHomeEoi) {
+    const hp = await prisma.policy.findUnique({ where: { id: simmonsHomeEoi.id }, include: { carrier: { select: { name: true } } } });
+    if (hp) {
+      await prisma.evidenceOfProperty.create({
+        data: {
+          eoiNumber: `EOI-${TODAY.getUTCFullYear()}-00001`,
+          kind: "EVIDENCE_OF_PROPERTY",
+          clientId: clients[0]!.id,
+          policyId: hp.id,
+          carrierName: hp.carrier.name,
+          policyNumber: hp.policyNumber,
+          effectiveDate: hp.effectiveDate,
+          expirationDate: hp.expirationDate,
+          propertyAddress: "100 King St, Charleston SC 29401",
+          coverageALimit: 420000,
+          deductibleText: "$1,000 (2% wind/hail)",
+          holderName: "First Palmetto Bank, ISAOA",
+          holderInterest: "MORTGAGEE",
+          holderAddress: "200 Broad St, Charleston SC 29401",
+          loanNumber: "FPB-2287740",
+          remarks: "ISAOA/ATIMA. Evidence furnished at the request of the lender.",
+          issuedById: molly.id,
+          issuedAt: daysFromNow(-6),
+        },
+      });
+    }
+  }
+
+  // (d) At-risk signals: give David Chen (client 4, AUTO-only mono-line)
+  // a recent claim and a badly past-due invoice so he scores at-risk.
+  const chenAuto = policyIds.find((p) => p.policyNumber.startsWith("PA-LIB") && p.clientIdx === 4);
+  if (chenAuto) {
+    await prisma.claim.create({
+      data: {
+        claimNumber: `CLM-${TODAY.getUTCFullYear()}-00006`,
+        policyId: chenAuto.id,
+        clientId: clients[4]!.id,
+        status: "OPEN",
+        dateOfLoss: daysFromNow(-40),
+        reportedAt: daysFromNow(-39),
+        description: "Hail damage to hood and roof during spring storm.",
+        adjusterName: "Toni Vega",
+        reserveAmount: 5200,
+        paidAmount: null,
+      },
+    });
+    await prisma.invoice.create({
+      data: {
+        invoiceNumber: `INV-${TODAY.getUTCFullYear()}-00006`,
+        clientId: clients[4]!.id,
+        policyId: chenAuto.id,
+        status: "SENT",
+        issueDate: daysFromNow(-120),
+        dueDate: daysFromNow(-95), // 95 days past due → 90+ bucket
+        amount: 1690,
+        paidAmount: 0,
+        xeroPaymentUrl: "https://in.xero.com/pay/demo-chen",
+        lines: { create: [{ description: `Premium — policy ${chenAuto.policyNumber}`, quantity: 1, unitAmount: 1690, amount: 1690 }] },
+      },
+    });
+  }
+
   // ── Referrals ──────────────────────────────────────────────────────
   await prisma.referral.createMany({
     data: [

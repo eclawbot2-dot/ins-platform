@@ -8,6 +8,9 @@ import type {
   BillingType,
   ClaimStatus,
   ClientStatus,
+  EndorsementRequestStatus,
+  EndorsementRequestType,
+  EoiHolderInterest,
   InvoiceStatus,
   LeadStatus,
   LineOfBusiness,
@@ -181,8 +184,49 @@ export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
   VOID: "Void",
 };
 
+// ── Wave B: servicing artifacts ──────────────────────────────────────
+
+export const ENDORSEMENT_REQUEST_TYPE_LABELS: Record<EndorsementRequestType, string> = {
+  ADD_VEHICLE: "Add vehicle",
+  REMOVE_VEHICLE: "Remove vehicle",
+  ADD_DRIVER: "Add driver",
+  REMOVE_DRIVER: "Remove driver",
+  CHANGE_LIMIT: "Change limit / coverage",
+  ADD_LIENHOLDER: "Add lienholder / mortgagee",
+  REMOVE_LIENHOLDER: "Remove lienholder / mortgagee",
+  ADDRESS_CHANGE: "Address change",
+  ADD_COVERAGE: "Add coverage",
+  REMOVE_COVERAGE: "Remove coverage",
+  OTHER: "Other change",
+};
+
+export const ENDORSEMENT_REQUEST_STATUS_LABELS: Record<EndorsementRequestStatus, string> = {
+  REQUESTED: "Requested",
+  IN_REVIEW: "In review",
+  SUBMITTED_TO_CARRIER: "Submitted to carrier",
+  COMPLETED: "Completed",
+  DECLINED: "Declined",
+};
+
+export const EOI_HOLDER_INTEREST_LABELS: Record<EoiHolderInterest, string> = {
+  MORTGAGEE: "Mortgagee",
+  LOSS_PAYEE: "Loss payee",
+  ADDITIONAL_INTEREST: "Additional interest",
+  LENDER: "Lender",
+};
+
 /** Badge tone per status family — maps to .badge-* classes in globals.css. */
 export type BadgeTone = "green" | "blue" | "amber" | "red" | "slate" | "violet";
+
+export function endorsementRequestStatusTone(s: EndorsementRequestStatus): BadgeTone {
+  switch (s) {
+    case "REQUESTED": return "violet";
+    case "IN_REVIEW": return "amber";
+    case "SUBMITTED_TO_CARRIER": return "blue";
+    case "COMPLETED": return "green";
+    case "DECLINED": return "red";
+  }
+}
 
 export function policyStatusTone(s: PolicyStatus): BadgeTone {
   switch (s) {
