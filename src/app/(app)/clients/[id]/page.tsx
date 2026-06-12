@@ -16,12 +16,16 @@ import {
 } from "@/lib/labels";
 import { fmtMoney, fmtMoneyCents, toNum } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
+import { xDateBucket } from "@/lib/domain/xdates";
+import { ALL_LOBS, lobSegment } from "@/lib/labels";
 import { inviteState } from "@/lib/domain/portal-invite";
 import {
   addClientActivity,
   addClientTask,
   addContact,
+  addPriorPolicy,
   deleteContact,
+  deletePriorPolicy,
   disablePortalUser,
   invitePortalUser,
   resendPortalInvite,
@@ -47,6 +51,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       tasks: { where: { status: { in: ["OPEN", "IN_PROGRESS"] } }, orderBy: { dueDate: "asc" }, include: { assignedTo: { select: { name: true } } } },
       portalUsers: { select: { id: true, email: true, name: true, active: true, lastLoginAt: true }, orderBy: { createdAt: "asc" } },
       portalInvites: { orderBy: { createdAt: "desc" }, take: 10 },
+      priorPolicies: { orderBy: { expirationDate: "asc" } },
     },
   });
   if (!client) notFound();
@@ -225,6 +230,62 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               </FormGrid>
               <button type="submit" className="btn btn-sm">
                 <Plus className="h-3.5 w-3.5" /> Add task
+              </button>
+            </form>
+          </div>
+
+          <div className="card-pad">
+            <h2 className="section-title mb-1">X-dates (prior coverage)</h2>
+            <p className="mb-3 text-xs text-slate-400">Competitor policy expirations — the cross-sell / win-back trigger.</p>
+            <ul className="space-y-2">
+              {client.priorPolicies.map((x) => {
+                const bucket = xDateBucket(x.expirationDate);
+                const tone = bucket === "OVERDUE" ? "red" : bucket === "DUE_30" ? "amber" : bucket === "DUE_60" ? "violet" : "slate";
+                return (
+                  <li key={x.id} className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2 text-sm last:border-0">
+                    <div>
+                      <div className="font-medium text-slate-800">
+                        {LOB_LABELS[x.lineOfBusiness]} {x.currentCarrier ? <span className="text-slate-500">· {x.currentCarrier}</span> : null}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        X-date {fmtDate(x.expirationDate)}
+                        {x.currentPremium != null ? ` · ${fmtMoney(x.currentPremium)}/yr` : ""}
+                      </div>
+                      {x.notes ? <div className="mt-0.5 text-xs text-slate-400">{x.notes}</div> : null}
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Badge tone={tone}>{bucket === "OVERDUE" ? "Overdue" : fmtDate(x.expirationDate)}</Badge>
+                      <form action={deletePriorPolicy.bind(null, client.id, x.id)}>
+                        <ConfirmButton message="Remove this X-date?">Remove</ConfirmButton>
+                      </form>
+                    </div>
+                  </li>
+                );
+              })}
+              {client.priorPolicies.length === 0 ? <li className="text-sm text-slate-400">No X-dates recorded.</li> : null}
+            </ul>
+            <form action={addPriorPolicy.bind(null, client.id)} className="mt-4 space-y-3 border-t border-slate-100 pt-3">
+              <FormGrid>
+                <Field label="Line of business" required>
+                  <Select
+                    name="lineOfBusiness"
+                    defaultValue="AUTO"
+                    options={ALL_LOBS.map((l) => ({ value: l, label: `${LOB_LABELS[l]} (${lobSegment(l)})` }))}
+                  />
+                </Field>
+                <Field label="Current carrier">
+                  <input name="currentCarrier" placeholder="e.g. State Farm" className="input" />
+                </Field>
+                <Field label="Current premium ($/yr)">
+                  <input name="currentPremium" type="number" step="0.01" min="0" className="input" />
+                </Field>
+                <Field label="X-date (expiration)" required>
+                  <input type="date" name="expirationDate" required className="input" />
+                </Field>
+              </FormGrid>
+              <input name="notes" placeholder="Notes (optional)" className="input" />
+              <button type="submit" className="btn btn-sm">
+                <Plus className="h-3.5 w-3.5" /> Add X-date
               </button>
             </form>
           </div>

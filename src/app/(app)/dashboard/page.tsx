@@ -9,6 +9,7 @@ import {
   Wallet,
   BookOpen,
   AlertTriangle,
+  CalendarClock,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { StatCard } from "@/components/ui/stat-card";
@@ -46,6 +47,9 @@ export default async function DashboardPage() {
     expiringAppointments,
     expiringEo,
     openTasks,
+    xdate30,
+    xdate60,
+    xdate90,
   ] = await Promise.all([
     prisma.policy.count({ where: { status: { in: ["ACTIVE", "BOUND"] } } }),
     prisma.policy.aggregate({ where: { status: { in: ["ACTIVE", "BOUND"] } }, _sum: { premium: true } }),
@@ -93,6 +97,10 @@ export default async function DashboardPage() {
       take: 8,
       include: { assignedTo: { select: { name: true } } },
     }),
+    // X-dates due (competitor expirations) — overdue counts in the 30 bucket.
+    prisma.priorPolicy.count({ where: { expirationDate: { lte: in30 } } }),
+    prisma.priorPolicy.count({ where: { expirationDate: { gt: in30, lte: in60 } } }),
+    prisma.priorPolicy.count({ where: { expirationDate: { gt: in60, lte: in90 } } }),
   ]);
 
   const bookPremium = toNum(bookPremiumAgg._sum.premium);
@@ -143,6 +151,14 @@ export default async function DashboardPage() {
         <StatCard label="Open claims" value={openClaims} icon={ShieldAlert} href="/claims" tone={openClaims > 0 ? "warn" : "default"} />
         <StatCard label="Pipeline value" value={fmtMoney(pipeline)} sub={`${openOpps.length} open opportunities`} icon={GitBranch} href="/opportunities" />
         <StatCard label="Commissions MTD" value={fmtMoney(commissionsMtd)} sub="From carrier statements" icon={Wallet} href="/commissions" />
+        <StatCard
+          label="X-dates 30 / 60 / 90"
+          value={`${xdate30} / ${xdate60} / ${xdate90}`}
+          sub="Competitor expirations due"
+          icon={CalendarClock}
+          href="/renewals/xdates"
+          tone={xdate30 > 0 ? "warn" : "default"}
+        />
       </div>
 
       {complianceAlerts.length > 0 ? (

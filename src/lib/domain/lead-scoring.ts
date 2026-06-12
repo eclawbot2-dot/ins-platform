@@ -15,21 +15,43 @@ export type LeadScoringInput = {
   source?: string | null;
 };
 
-/** Premium-value weighting per LOB (commercial lines score higher). */
-const LOB_POINTS: Record<LineOfBusiness, number> = {
+/**
+ * Premium-value weighting per LOB (commercial lines score higher).
+ * Partial — lines without an explicit weight fall back to 8 at the call
+ * site, so adding new LOBs never breaks the type.
+ */
+const LOB_POINTS: Partial<Record<LineOfBusiness, number>> = {
+  // Personal
   AUTO: 10,
   HOME: 14,
+  CONDO: 12,
   RENTERS: 6,
   UMBRELLA: 12,
+  FLOOD: 10,
+  MOTORCYCLE: 8,
+  BOAT: 9,
+  RV: 9,
+  VALUABLE_ARTICLES: 8,
+  PET: 4,
+  IDENTITY_THEFT: 4,
   LIFE: 12,
   HEALTH: 10,
+  // Commercial
   GENERAL_LIABILITY: 22,
   COMMERCIAL_PROPERTY: 24,
   BOP: 22,
   WORKERS_COMP: 26,
   COMMERCIAL_AUTO: 24,
+  COMMERCIAL_UMBRELLA: 22,
   CYBER: 20,
   PROFESSIONAL: 22,
+  ERRORS_OMISSIONS: 22,
+  DIRECTORS_OFFICERS: 22,
+  EPLI: 20,
+  LIQUOR_LIABILITY: 18,
+  SURETY_BONDS: 14,
+  GARAGE: 20,
+  BUILDERS_RISK: 20,
   INLAND_MARINE: 16,
 };
 

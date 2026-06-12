@@ -17,6 +17,8 @@ import {
 } from "@/lib/labels";
 import { fmtMoney, fmtMoneyCents, fmtPct, toNum } from "@/lib/money";
 import { fmtDate, fmtDateInput } from "@/lib/domain/dates";
+import { loadPolicyExisting } from "@/lib/domain/policy-detail";
+import { CoverageScheduleTable, RiskItems } from "@/components/policy/coverage-schedule";
 import {
   activatePolicy,
   addEndorsement,
@@ -50,11 +52,22 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
   });
   if (!policy) notFound();
 
-  const producers = await prisma.user.findMany({
-    where: { active: true, role: { in: ["ADMIN", "PRODUCER"] } },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+  const [producers, existing] = await Promise.all([
+    prisma.user.findMany({
+      where: { active: true, role: { in: ["ADMIN", "PRODUCER"] } },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    loadPolicyExisting(policy.id),
+  ]);
+  const hasRiskItems =
+    (existing.vehicles?.length ?? 0) +
+      (existing.drivers?.length ?? 0) +
+      (existing.dwellings?.length ?? 0) +
+      (existing.scheduledItems?.length ?? 0) +
+      (existing.watercraft?.length ?? 0) +
+      (existing.locations?.length ?? 0) >
+    0;
 
   const isOpen = policy.status === "ACTIVE" || policy.status === "BOUND";
 
@@ -149,6 +162,23 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
             </dl>
             {policy.notes ? <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{policy.notes}</p> : null}
           </div>
+
+          <div className="card-pad">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="section-title">Coverage schedule ({existing.coverages?.length ?? 0})</h2>
+              <Link href={`/policies/${policy.id}/edit`} className="text-xs text-navy-700 hover:underline">
+                Edit coverages →
+              </Link>
+            </div>
+            <CoverageScheduleTable coverages={existing.coverages ?? []} />
+          </div>
+
+          {hasRiskItems ? (
+            <div className="card-pad">
+              <h2 className="section-title mb-3">Risk items</h2>
+              <RiskItems items={existing} staff />
+            </div>
+          ) : null}
 
           <div className="card-pad">
             <h2 className="section-title mb-3">Endorsements ({policy.endorsements.length})</h2>

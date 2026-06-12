@@ -3,6 +3,7 @@ import { Field, FormGrid, Select } from "@/components/ui/form";
 import { ALL_LOBS, BILLING_LABELS, LOB_LABELS, POLICY_STATUS_LABELS, lobSegment } from "@/lib/labels";
 import { fmtDateInput } from "@/lib/domain/dates";
 import { toNum } from "@/lib/money";
+import { CoverageEditor, type ExistingRiskItems } from "./coverage-editor";
 
 export function PolicyForm({
   policy,
@@ -10,6 +11,7 @@ export function PolicyForm({
   carriers,
   users,
   defaults,
+  existing,
   action,
   submitLabel,
 }: {
@@ -18,12 +20,15 @@ export function PolicyForm({
   carriers: Pick<Carrier, "id" | "name">[];
   users: Pick<User, "id" | "name" | "role">[];
   defaults?: { clientId?: string };
+  existing?: ExistingRiskItems;
   action: (formData: FormData) => Promise<void>;
   submitLabel: string;
 }) {
   const producers = users.filter((u) => u.role !== "CSR");
+  const initialLob = policy?.lineOfBusiness ?? "AUTO";
   return (
-    <form action={action} className="card-pad max-w-3xl space-y-5">
+    <form action={action} className="max-w-3xl space-y-6">
+      <div className="card-pad space-y-5">
       <FormGrid cols={3}>
         <Field label="Policy number" required>
           <input name="policyNumber" defaultValue={policy?.policyNumber ?? ""} required className="input" />
@@ -96,12 +101,16 @@ export function PolicyForm({
           />
         </Field>
       </FormGrid>
-      <label className="flex items-center gap-2 text-sm text-slate-600">
-        <input type="checkbox" name="isNewBusiness" defaultChecked={policy?.isNewBusiness ?? true} /> New business (vs renewal)
-      </label>
-      <Field label="Notes">
-        <textarea name="notes" defaultValue={policy?.notes ?? ""} rows={3} className="input" />
-      </Field>
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" name="isNewBusiness" defaultChecked={policy?.isNewBusiness ?? true} /> New business (vs renewal)
+        </label>
+        <Field label="Notes">
+          <textarea name="notes" defaultValue={policy?.notes ?? ""} rows={3} className="input" />
+        </Field>
+      </div>
+
+      <CoverageEditor initialLob={initialLob} existing={existing} />
+
       <button type="submit" className="btn-primary">
         {submitLabel}
       </button>

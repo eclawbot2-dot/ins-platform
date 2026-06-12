@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/page-header";
+import { loadPolicyExisting } from "@/lib/domain/policy-detail";
 import { PolicyForm } from "../../policy-form";
 import { updatePolicy } from "../../actions";
 
@@ -16,10 +17,11 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
     prisma.user.findMany({ where: { active: true, role: { not: "CLIENT" } }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }),
   ]);
   if (!policy) notFound();
+  const existing = await loadPolicyExisting(policy.id);
   return (
     <>
       <PageHeader title={`Edit ${policy.policyNumber}`} />
-      <PolicyForm policy={policy} clients={clients} carriers={carriers} users={users} action={updatePolicy.bind(null, policy.id)} submitLabel="Save changes" />
+      <PolicyForm policy={policy} clients={clients} carriers={carriers} users={users} existing={existing} action={updatePolicy.bind(null, policy.id)} submitLabel="Save changes" />
     </>
   );
 }

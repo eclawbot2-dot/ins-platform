@@ -6,7 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { createPortalInvite } from "@/lib/portal-invite";
-import { fStr, fStrOpt, fDate, fEnum, fBool } from "@/lib/form";
+import { fStr, fStrOpt, fNumOpt, fDate, fEnum, fBool } from "@/lib/form";
+import { ALL_LOBS } from "@/lib/labels";
+import { addYears } from "@/lib/domain/dates";
 import type { ClientStatus, ClientType, ActivityType } from "@prisma/client";
 
 const CLIENT_TYPES: ClientType[] = ["INDIVIDUAL", "BUSINESS"];
@@ -82,6 +84,33 @@ export async function deleteContact(clientId: string, contactId: string) {
   await prisma.contact.delete({ where: { id: contactId } });
   revalidatePath(`/clients/${clientId}`);
   redirect(`/clients/${clientId}?toast=${encodeURIComponent("Contact removed")}`);
+}
+
+// ── X-dates (prior/competitor policies) ──────────────────────────────
+
+export async function addPriorPolicy(clientId: string, formData: FormData) {
+  const session = await requireSession();
+  const expirationDate = fDate(formData, "expirationDate") ?? addYears(new Date(), 1);
+  await prisma.priorPolicy.create({
+    data: {
+      clientId,
+      lineOfBusiness: fEnum(formData, "lineOfBusiness", ALL_LOBS, "AUTO"),
+      currentCarrier: fStrOpt(formData, "currentCarrier"),
+      currentPremium: fNumOpt(formData, "currentPremium"),
+      expirationDate,
+      notes: fStrOpt(formData, "notes"),
+    },
+  });
+  await audit({ userId: session.userId, action: "XDATE_ADD", entityType: "Client", entityId: clientId });
+  revalidatePath(`/clients/${clientId}`);
+  redirect(`/clients/${clientId}?toast=${encodeURIComponent("X-date saved")}`);
+}
+
+export async function deletePriorPolicy(clientId: string, priorPolicyId: string) {
+  await requireSession();
+  await prisma.priorPolicy.delete({ where: { id: priorPolicyId } });
+  revalidatePath(`/clients/${clientId}`);
+  redirect(`/clients/${clientId}?toast=${encodeURIComponent("X-date removed")}`);
 }
 
 export async function addClientActivity(clientId: string, formData: FormData) {

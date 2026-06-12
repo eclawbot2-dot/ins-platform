@@ -25,6 +25,16 @@ export const LOB_LABELS: Record<LineOfBusiness, string> = {
   UMBRELLA: "Personal Umbrella",
   LIFE: "Life",
   HEALTH: "Health",
+  // Personal — Wave A
+  CONDO: "Condo (HO-6)",
+  FLOOD: "Flood",
+  MOTORCYCLE: "Motorcycle",
+  BOAT: "Boat / Watercraft",
+  RV: "RV / Motorhome",
+  VALUABLE_ARTICLES: "Valuable Articles",
+  PET: "Pet",
+  IDENTITY_THEFT: "Identity Theft",
+  // Commercial
   GENERAL_LIABILITY: "General Liability",
   COMMERCIAL_PROPERTY: "Commercial Property",
   BOP: "Business Owners (BOP)",
@@ -33,17 +43,49 @@ export const LOB_LABELS: Record<LineOfBusiness, string> = {
   CYBER: "Cyber Liability",
   PROFESSIONAL: "Professional / E&O",
   INLAND_MARINE: "Inland Marine",
+  // Commercial — Wave A
+  ERRORS_OMISSIONS: "Errors & Omissions",
+  COMMERCIAL_UMBRELLA: "Commercial Umbrella",
+  DIRECTORS_OFFICERS: "Directors & Officers",
+  EPLI: "Employment Practices (EPLI)",
+  LIQUOR_LIABILITY: "Liquor Liability",
+  SURETY_BONDS: "Surety Bonds",
+  GARAGE: "Garage / Dealers",
+  BUILDERS_RISK: "Builders Risk",
 };
 
-export const PERSONAL_LOBS: LineOfBusiness[] = ["AUTO", "HOME", "RENTERS", "UMBRELLA", "LIFE", "HEALTH"];
+export const PERSONAL_LOBS: LineOfBusiness[] = [
+  "AUTO",
+  "HOME",
+  "CONDO",
+  "RENTERS",
+  "UMBRELLA",
+  "FLOOD",
+  "MOTORCYCLE",
+  "BOAT",
+  "RV",
+  "VALUABLE_ARTICLES",
+  "PET",
+  "IDENTITY_THEFT",
+  "LIFE",
+  "HEALTH",
+];
 export const COMMERCIAL_LOBS: LineOfBusiness[] = [
   "GENERAL_LIABILITY",
   "COMMERCIAL_PROPERTY",
   "BOP",
   "WORKERS_COMP",
   "COMMERCIAL_AUTO",
+  "COMMERCIAL_UMBRELLA",
   "CYBER",
   "PROFESSIONAL",
+  "ERRORS_OMISSIONS",
+  "DIRECTORS_OFFICERS",
+  "EPLI",
+  "LIQUOR_LIABILITY",
+  "SURETY_BONDS",
+  "GARAGE",
+  "BUILDERS_RISK",
   "INLAND_MARINE",
 ];
 export const ALL_LOBS: LineOfBusiness[] = [...PERSONAL_LOBS, ...COMMERCIAL_LOBS];

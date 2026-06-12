@@ -10,11 +10,213 @@ import { expectedCommission, validateSplits } from "@/lib/domain/commissions";
 import { proRataReturn, shortRateReturn, prorateEndorsement } from "@/lib/domain/proration";
 import { addYears } from "@/lib/domain/dates";
 import { ALL_LOBS } from "@/lib/labels";
+import { coverageTemplateFor } from "@/lib/domain/coverage-templates";
 import { toNum, roundMoney } from "@/lib/money";
-import type { BillingType, PolicyStatus } from "@prisma/client";
+import type { BillingType, LineOfBusiness, PolicyStatus, Prisma } from "@prisma/client";
 
 const BILLING: BillingType[] = ["AGENCY_BILL", "DIRECT_BILL"];
 const STATUSES: PolicyStatus[] = ["QUOTE", "BOUND", "ACTIVE", "RENEWED", "CANCELLED", "EXPIRED", "NON_RENEWED"];
+
+// ── Coverage + risk-item parsing (Wave A) ────────────────────────────
+
+const fInt = (fd: FormData, key: string): number | null => {
+  const v = fStr(fd, key);
+  if (v === "") return null;
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : null;
+};
+const fDec = (fd: FormData, key: string): number | null => {
+  const v = fStr(fd, key).replace(/[$,]/g, "");
+  if (v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+const count = (fd: FormData, key: string): number => {
+  const n = parseInt(fStr(fd, key), 10);
+  return Number.isFinite(n) && n >= 0 ? Math.min(n, 50) : 0;
+};
+/** A money-or-split value: pure number → amount; anything else → text. */
+function limitValue(raw: string): { amount: number | null; text: string | null } {
+  const v = raw.trim();
+  if (v === "") return { amount: null, text: null };
+  const cleaned = v.replace(/[$,]/g, "");
+  if (/^\d+(\.\d+)?$/.test(cleaned)) return { amount: Number(cleaned), text: null };
+  return { amount: null, text: v };
+}
+
+type ParsedItems = {
+  coverages: Prisma.CoverageCreateManyPolicyInput[];
+  vehicles: Prisma.VehicleCreateManyPolicyInput[];
+  drivers: Prisma.DriverCreateManyPolicyInput[];
+  dwellings: Prisma.DwellingCreateManyPolicyInput[];
+  scheduledItems: Prisma.ScheduledItemCreateManyPolicyInput[];
+  watercraft: Prisma.WatercraftCreateManyPolicyInput[];
+  locations: Prisma.InsuredLocationCreateManyPolicyInput[];
+};
+
+/**
+ * Parse the LOB-driven coverage schedule + risk-item editors out of the
+ * policy form. Coverage rows are keyed by the template index; risk-item
+ * rows are repeatable, gated by the LOB template so only applicable
+ * tables are written.
+ */
+function coverageAndRiskItemsFrom(formData: FormData, lob: LineOfBusiness): ParsedItems {
+  const template = coverageTemplateFor(lob);
+  const out: ParsedItems = { coverages: [], vehicles: [], drivers: [], dwellings: [], scheduledItems: [], watercraft: [], locations: [] };
+
+  // Coverages — one row per template coverage; skip rows with nothing entered.
+  const covCount = Math.min(count(formData, "cov_count"), template.coverages.length);
+  for (let i = 0; i < covCount; i++) {
+    const code = fStr(formData, `cov_code_${i}`);
+    if (!code) continue;
+    const label = fStr(formData, `cov_label_${i}`) || code;
+    const limit = limitValue(fStr(formData, `cov_limit_${i}`));
+    const deduct = limitValue(fStr(formData, `cov_deduct_${i}`));
+    const premiumPart = fDec(formData, `cov_premium_${i}`);
+    if (limit.amount == null && limit.text == null && deduct.amount == null && deduct.text == null && premiumPart == null) continue;
+    out.coverages.push({
+      code,
+      label,
+      limitText: limit.text,
+      limitAmount: limit.amount,
+      deductibleText: deduct.text,
+      deductibleAmount: deduct.amount,
+      premiumPart,
+      sortOrder: i,
+    });
+  }
+
+  const apply = template.riskItems;
+  if (apply.includes("vehicle")) {
+    const n = count(formData, "veh_count");
+    for (let i = 0; i < n; i++) {
+      const make = fStr(formData, `veh_make_${i}`);
+      const model = fStr(formData, `veh_model_${i}`);
+      const year = fInt(formData, `veh_year_${i}`);
+      const vin = fStrOpt(formData, `veh_vin_${i}`);
+      if (!make && !model && year == null && !vin) continue;
+      out.vehicles.push({
+        year,
+        make: make || null,
+        model: model || null,
+        vin,
+        garagingZip: fStrOpt(formData, `veh_zip_${i}`),
+        usage: fStrOpt(formData, `veh_usage_${i}`),
+        annualMiles: fInt(formData, `veh_miles_${i}`),
+      });
+    }
+  }
+  if (apply.includes("driver")) {
+    const n = count(formData, "drv_count");
+    for (let i = 0; i < n; i++) {
+      const name = fStr(formData, `drv_name_${i}`);
+      if (!name) continue;
+      out.drivers.push({
+        name,
+        licenseNumber: fStrOpt(formData, `drv_lic_${i}`),
+        licenseState: fStrOpt(formData, `drv_state_${i}`),
+        relationship: fStrOpt(formData, `drv_rel_${i}`),
+      });
+    }
+  }
+  if (apply.includes("dwelling")) {
+    const n = count(formData, "dwl_count");
+    for (let i = 0; i < n; i++) {
+      const addr = fStr(formData, `dwl_addr_${i}`);
+      const rcv = fDec(formData, `dwl_rcv_${i}`);
+      if (!addr && rcv == null && !fStr(formData, `dwl_city_${i}`)) continue;
+      out.dwellings.push({
+        addressLine1: addr || null,
+        city: fStrOpt(formData, `dwl_city_${i}`),
+        state: fStrOpt(formData, `dwl_state_${i}`),
+        zip: fStrOpt(formData, `dwl_zip_${i}`),
+        yearBuilt: fInt(formData, `dwl_year_${i}`),
+        construction: fStrOpt(formData, `dwl_constr_${i}`),
+        roofType: fStrOpt(formData, `dwl_roof_${i}`),
+        squareFeet: fInt(formData, `dwl_sqft_${i}`),
+        replacementCost: rcv,
+        occupancy: fStrOpt(formData, `dwl_occ_${i}`),
+        mortgageeName: fStrOpt(formData, `dwl_mortgagee_${i}`),
+        loanNumber: fStrOpt(formData, `dwl_loan_${i}`),
+      });
+    }
+  }
+  if (apply.includes("scheduledItem")) {
+    const n = count(formData, "sch_count");
+    for (let i = 0; i < n; i++) {
+      const desc = fStr(formData, `sch_desc_${i}`);
+      const value = fDec(formData, `sch_value_${i}`);
+      if (!desc && value == null) continue;
+      out.scheduledItems.push({
+        type: fStr(formData, `sch_type_${i}`) || "item",
+        description: desc || "Scheduled item",
+        value: value ?? 0,
+        appraisalOnFile: fBool(formData, `sch_appraisal_${i}`),
+      });
+    }
+  }
+  if (apply.includes("watercraft")) {
+    const n = count(formData, "wct_count");
+    for (let i = 0; i < n; i++) {
+      const make = fStr(formData, `wct_make_${i}`);
+      const type = fStr(formData, `wct_type_${i}`);
+      if (!make && !type) continue;
+      out.watercraft.push({
+        type: type || null,
+        year: fInt(formData, `wct_year_${i}`),
+        make: make || null,
+        length: fDec(formData, `wct_length_${i}`),
+        hullId: fStrOpt(formData, `wct_hull_${i}`),
+        motorHp: fInt(formData, `wct_hp_${i}`),
+      });
+    }
+  }
+  if (apply.includes("location")) {
+    const n = count(formData, "loc_count");
+    for (let i = 0; i < n; i++) {
+      const addr = fStr(formData, `loc_addr_${i}`);
+      const bldg = fDec(formData, `loc_bldg_${i}`);
+      if (!addr && bldg == null && !fStr(formData, `loc_city_${i}`)) continue;
+      out.locations.push({
+        addressLine1: addr || null,
+        city: fStrOpt(formData, `loc_city_${i}`),
+        state: fStrOpt(formData, `loc_state_${i}`),
+        zip: fStrOpt(formData, `loc_zip_${i}`),
+        buildingValue: bldg,
+        contentsValue: fDec(formData, `loc_cont_${i}`),
+        occupancy: fStrOpt(formData, `loc_occ_${i}`),
+        sqFt: fInt(formData, `loc_sqft_${i}`),
+        yearBuilt: fInt(formData, `loc_year_${i}`),
+      });
+    }
+  }
+
+  return out;
+}
+
+/** Persist parsed coverage + risk items for a policy (replace-all). */
+async function writeCoverageAndRiskItems(policyId: string, items: ParsedItems, replace: boolean) {
+  const ops: Prisma.PrismaPromise<unknown>[] = [];
+  if (replace) {
+    ops.push(
+      prisma.coverage.deleteMany({ where: { policyId } }),
+      prisma.vehicle.deleteMany({ where: { policyId } }),
+      prisma.driver.deleteMany({ where: { policyId } }),
+      prisma.dwelling.deleteMany({ where: { policyId } }),
+      prisma.scheduledItem.deleteMany({ where: { policyId } }),
+      prisma.watercraft.deleteMany({ where: { policyId } }),
+      prisma.insuredLocation.deleteMany({ where: { policyId } }),
+    );
+  }
+  if (items.coverages.length) ops.push(prisma.coverage.createMany({ data: items.coverages.map((c) => ({ ...c, policyId })) }));
+  if (items.vehicles.length) ops.push(prisma.vehicle.createMany({ data: items.vehicles.map((c) => ({ ...c, policyId })) }));
+  if (items.drivers.length) ops.push(prisma.driver.createMany({ data: items.drivers.map((c) => ({ ...c, policyId })) }));
+  if (items.dwellings.length) ops.push(prisma.dwelling.createMany({ data: items.dwellings.map((c) => ({ ...c, policyId })) }));
+  if (items.scheduledItems.length) ops.push(prisma.scheduledItem.createMany({ data: items.scheduledItems.map((c) => ({ ...c, policyId })) }));
+  if (items.watercraft.length) ops.push(prisma.watercraft.createMany({ data: items.watercraft.map((c) => ({ ...c, policyId })) }));
+  if (items.locations.length) ops.push(prisma.insuredLocation.createMany({ data: items.locations.map((c) => ({ ...c, policyId })) }));
+  if (ops.length) await prisma.$transaction(ops);
+}
 
 function policyDataFrom(formData: FormData) {
   const premium = fNum(formData, "premium");
@@ -58,6 +260,8 @@ export async function createPolicy(formData: FormData) {
   await prisma.policyProducerSplit.create({
     data: { policyId: policy.id, producerId: data.producerId, pct: 100 },
   });
+  // Coverage schedule + risk items, gated by the saved line's template.
+  await writeCoverageAndRiskItems(policy.id, coverageAndRiskItemsFrom(formData, data.lineOfBusiness), false);
   await audit({ userId: session.userId, action: "POLICY_CREATE", entityType: "Policy", entityId: policy.id, detail: policy.policyNumber });
   redirect(`/policies/${policy.id}?toast=${encodeURIComponent("Policy created")}`);
 }
@@ -66,6 +270,8 @@ export async function updatePolicy(id: string, formData: FormData) {
   const session = await requireSession();
   const data = policyDataFrom(formData);
   await prisma.policy.update({ where: { id }, data });
+  // Replace the coverage schedule + risk items for the saved line.
+  await writeCoverageAndRiskItems(id, coverageAndRiskItemsFrom(formData, data.lineOfBusiness), true);
   await audit({ userId: session.userId, action: "POLICY_UPDATE", entityType: "Policy", entityId: id });
   redirect(`/policies/${id}?toast=${encodeURIComponent("Policy updated")}`);
 }

@@ -71,6 +71,16 @@ async function main() {
     prisma.opportunity.deleteMany(),
     prisma.policyProducerSplit.deleteMany(),
     prisma.endorsement.deleteMany(),
+    // Wave A: coverage + risk items + X-dates (cascade on policy/client,
+    // but deleted explicitly so the wipe is order-independent).
+    prisma.coverage.deleteMany(),
+    prisma.vehicle.deleteMany(),
+    prisma.driver.deleteMany(),
+    prisma.dwelling.deleteMany(),
+    prisma.scheduledItem.deleteMany(),
+    prisma.watercraft.deleteMany(),
+    prisma.insuredLocation.deleteMany(),
+    prisma.priorPolicy.deleteMany(),
     prisma.policy.deleteMany(),
     prisma.lead.deleteMany(),
     prisma.campaign.deleteMany(),
@@ -163,18 +173,18 @@ async function main() {
     lobs: Array<[LineOfBusiness, number, number]>; // lob, new %, renewal %
   };
   const carrierSpecs: CarrierSpec[] = [
-    { name: "Progressive", naic: "24260", amBest: "A+", portal: "https://foragentsonly.com", phone: "800-776-4737", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 1), lobs: [["AUTO", 12, 10], ["HOME", 13, 11], ["RENTERS", 12, 10], ["COMMERCIAL_AUTO", 14, 12]] },
-    { name: "Travelers", naic: "25658", amBest: "A++", portal: "https://agenthq.travelers.com", phone: "800-842-5075", appt: "APPOINTED", apptExpires: daysFromNow(38), lobs: [["AUTO", 12, 10], ["HOME", 14, 12], ["BOP", 16, 14], ["GENERAL_LIABILITY", 15, 13], ["UMBRELLA", 12, 10], ["WORKERS_COMP", 10, 9]] },
+    { name: "Progressive", naic: "24260", amBest: "A+", portal: "https://foragentsonly.com", phone: "800-776-4737", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 1), lobs: [["AUTO", 12, 10], ["HOME", 13, 11], ["RENTERS", 12, 10], ["COMMERCIAL_AUTO", 14, 12], ["MOTORCYCLE", 13, 11], ["BOAT", 13, 11], ["RV", 13, 11]] },
+    { name: "Travelers", naic: "25658", amBest: "A++", portal: "https://agenthq.travelers.com", phone: "800-842-5075", appt: "APPOINTED", apptExpires: daysFromNow(38), lobs: [["AUTO", 12, 10], ["HOME", 14, 12], ["CONDO", 14, 12], ["BOP", 16, 14], ["GENERAL_LIABILITY", 15, 13], ["UMBRELLA", 12, 10], ["COMMERCIAL_UMBRELLA", 13, 11], ["WORKERS_COMP", 10, 9], ["FLOOD", 12, 12]] },
     { name: "Hartford", naic: "19682", amBest: "A+", portal: "https://eba.thehartford.com", phone: "860-547-5000", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 1), lobs: [["BOP", 17, 15], ["WORKERS_COMP", 11, 9], ["GENERAL_LIABILITY", 15, 13], ["COMMERCIAL_PROPERTY", 16, 14]] },
     { name: "Liberty Mutual", naic: "23043", amBest: "A", portal: "https://agentsolutions.libertymutual.com", phone: "800-225-2467", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 2), lobs: [["AUTO", 11, 9], ["HOME", 13, 11], ["COMMERCIAL_AUTO", 14, 12]] },
-    { name: "Chubb", naic: "20281", amBest: "A++", portal: "https://agents.chubb.com", phone: "800-252-4670", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 1), lobs: [["HOME", 15, 13], ["UMBRELLA", 13, 11], ["CYBER", 18, 16], ["PROFESSIONAL", 17, 15]] },
+    { name: "Chubb", naic: "20281", amBest: "A++", portal: "https://agents.chubb.com", phone: "800-252-4670", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 1), lobs: [["HOME", 15, 13], ["UMBRELLA", 13, 11], ["CYBER", 18, 16], ["PROFESSIONAL", 17, 15], ["VALUABLE_ARTICLES", 16, 14], ["DIRECTORS_OFFICERS", 17, 15], ["EPLI", 16, 14]] },
     { name: "Nationwide", naic: "23787", amBest: "A", portal: "https://agentcenter.nationwide.com", phone: "877-669-6877", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 1), lobs: [["AUTO", 12, 10], ["HOME", 13, 11], ["LIFE", 40, 5], ["BOP", 16, 14]] },
     { name: "Safeco", naic: "39012", amBest: "A", portal: "https://now.safeco.com", phone: "800-332-3226", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 2), lobs: [["AUTO", 12, 10], ["HOME", 13, 11], ["UMBRELLA", 12, 10], ["RENTERS", 12, 10]] },
-    { name: "Hanover", naic: "22292", amBest: "A", portal: "https://tap.hanover.com", phone: "800-922-8427", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 1), lobs: [["BOP", 16, 14], ["COMMERCIAL_PROPERTY", 16, 14], ["INLAND_MARINE", 15, 13]] },
+    { name: "Hanover", naic: "22292", amBest: "A", portal: "https://tap.hanover.com", phone: "800-922-8427", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 1), lobs: [["BOP", 16, 14], ["COMMERCIAL_PROPERTY", 16, 14], ["INLAND_MARINE", 15, 13], ["BUILDERS_RISK", 16, 14], ["LIQUOR_LIABILITY", 16, 14]] },
     { name: "CNA", naic: "20443", amBest: "A", portal: "https://agent.cna.com", phone: "800-262-2000", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 1), lobs: [["GENERAL_LIABILITY", 15, 13], ["WORKERS_COMP", 10, 9], ["PROFESSIONAL", 17, 15]] },
     { name: "Berkshire GUARD", naic: "42390", amBest: "A+", portal: "https://www.guard.com/agents", phone: "800-673-2465", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 2), lobs: [["WORKERS_COMP", 11, 10], ["BOP", 15, 13]] },
-    { name: "Hiscox", naic: "10200", amBest: "A", portal: "https://partner.hiscox.com", phone: "866-283-7545", appt: "PENDING", lobs: [["PROFESSIONAL", 18, 16], ["CYBER", 18, 16], ["GENERAL_LIABILITY", 15, 13]] },
-    { name: "Foremost", naic: "11185", amBest: "A", portal: "https://foremoststar.com", phone: "800-527-3905", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 1), lobs: [["HOME", 13, 11], ["RENTERS", 12, 10], ["INLAND_MARINE", 14, 12]] },
+    { name: "Hiscox", naic: "10200", amBest: "A", portal: "https://partner.hiscox.com", phone: "866-283-7545", appt: "PENDING", lobs: [["PROFESSIONAL", 18, 16], ["ERRORS_OMISSIONS", 18, 16], ["CYBER", 18, 16], ["GENERAL_LIABILITY", 15, 13]] },
+    { name: "Foremost", naic: "11185", amBest: "A", portal: "https://foremoststar.com", phone: "800-527-3905", appt: "APPOINTED", apptExpires: addYearsUtc(TODAY, 1), lobs: [["HOME", 13, 11], ["CONDO", 13, 11], ["RENTERS", 12, 10], ["INLAND_MARINE", 14, 12], ["MOTORCYCLE", 13, 11], ["RV", 13, 11], ["BOAT", 13, 11]] },
   ];
   const carriers: Record<string, { id: string }> = {};
   for (const spec of carrierSpecs) {
@@ -456,6 +466,129 @@ async function main() {
     });
   }
 
+  // ── Coverage detail + risk items (Wave A) ──────────────────────────
+  // Give a representative slice of the book real coverage schedules and
+  // risk items so every new surface renders meaningful data.
+  const byPrefix = (prefix: string, clientIdx?: number) =>
+    policyIds.find((p) => p.policyNumber.startsWith(prefix) && (clientIdx == null || p.clientIdx === clientIdx));
+
+  // Harborview Builders GL (the client-portal demo login) — full GL schedule.
+  const harborGlPol = byPrefix("GL-HAR", 1);
+  if (harborGlPol) {
+    await prisma.coverage.createMany({
+      data: [
+        { policyId: harborGlPol.id, code: "GL_OCC", label: "Each occurrence", limitAmount: 1000000, premiumPart: 5200, sortOrder: 0 },
+        { policyId: harborGlPol.id, code: "GL_AGG", label: "General aggregate", limitAmount: 2000000, sortOrder: 1 },
+        { policyId: harborGlPol.id, code: "GL_PRODCOMP", label: "Products/completed-ops aggregate", limitAmount: 2000000, sortOrder: 2 },
+        { policyId: harborGlPol.id, code: "GL_PERSADV", label: "Personal & advertising injury", limitAmount: 1000000, sortOrder: 3 },
+        { policyId: harborGlPol.id, code: "GL_MEDEXP", label: "Medical expense (any one person)", limitAmount: 5000, sortOrder: 4 },
+        { policyId: harborGlPol.id, code: "GL_DAMPREM", label: "Damage to rented premises", limitAmount: 100000, sortOrder: 5 },
+      ],
+    });
+    await prisma.insuredLocation.create({
+      data: { policyId: harborGlPol.id, addressLine1: "107 Coleman Blvd", city: "Mount Pleasant", state: "SC", zip: "29464", buildingValue: 750000, contentsValue: 180000, occupancy: "Contractor office + yard", sqFt: 6200, yearBuilt: 2008 },
+    });
+  }
+  // Harborview Workers Comp — statutory schedule.
+  const harborWcPol = byPrefix("WC-BER", 1);
+  if (harborWcPol) {
+    await prisma.coverage.createMany({
+      data: [
+        { policyId: harborWcPol.id, code: "WC_STATUTORY", label: "Workers compensation (statutory)", limitText: "Statutory", sortOrder: 0 },
+        { policyId: harborWcPol.id, code: "EL_ACCIDENT", label: "E.L. each accident", limitAmount: 1000000, sortOrder: 1 },
+        { policyId: harborWcPol.id, code: "EL_DISEASE_EE", label: "E.L. disease — each employee", limitAmount: 1000000, sortOrder: 2 },
+        { policyId: harborWcPol.id, code: "EL_DISEASE_POL", label: "E.L. disease — policy limit", limitAmount: 1000000, sortOrder: 3 },
+      ],
+    });
+  }
+  // Harborview Commercial Auto — vehicle + driver risk items.
+  const harborCaPol = byPrefix("CA-PRO", 1);
+  if (harborCaPol) {
+    await prisma.coverage.createMany({
+      data: [
+        { policyId: harborCaPol.id, code: "BI", label: "Bodily injury liability", limitText: "1,000,000 CSL", sortOrder: 0 },
+        { policyId: harborCaPol.id, code: "COMP", label: "Comprehensive", deductibleAmount: 1000, sortOrder: 1 },
+        { policyId: harborCaPol.id, code: "COLL", label: "Collision", deductibleAmount: 1000, sortOrder: 2 },
+      ],
+    });
+    const foreman = await prisma.driver.create({
+      data: { policyId: harborCaPol.id, name: "Diego Ramirez", relationship: "Employee", licenseNumber: "SC-DL-882211", licenseState: "SC" },
+    });
+    await prisma.vehicle.createMany({
+      data: [
+        { policyId: harborCaPol.id, year: 2022, make: "Ford", model: "F-250", vin: "1FT7W2BT0NEC04821", garagingZip: "29464", usage: "business", annualMiles: 18000 },
+        { policyId: harborCaPol.id, year: 2021, make: "RAM", model: "2500", vin: "3C6UR5DL2MG573210", garagingZip: "29464", usage: "business", annualMiles: 22000 },
+      ],
+    });
+    // Link a primary driver to the first truck.
+    const firstTruck = await prisma.vehicle.findFirst({ where: { policyId: harborCaPol.id }, orderBy: { createdAt: "asc" } });
+    if (firstTruck) await prisma.vehicle.update({ where: { id: firstTruck.id }, data: { primaryDriverId: foreman.id } });
+  }
+
+  // Personal-lines demo: Walter & Janet Simmons (client 0) HOME + AUTO.
+  const simmonsHome = byPrefix("HO-TRA", 0);
+  if (simmonsHome) {
+    await prisma.coverage.createMany({
+      data: [
+        { policyId: simmonsHome.id, code: "COV_A", label: "Coverage A — Dwelling", limitAmount: 420000, premiumPart: 1900, sortOrder: 0 },
+        { policyId: simmonsHome.id, code: "COV_B", label: "Coverage B — Other structures", limitAmount: 42000, sortOrder: 1 },
+        { policyId: simmonsHome.id, code: "COV_C", label: "Coverage C — Personal property", limitAmount: 210000, sortOrder: 2 },
+        { policyId: simmonsHome.id, code: "COV_D", label: "Coverage D — Loss of use", limitAmount: 84000, sortOrder: 3 },
+        { policyId: simmonsHome.id, code: "COV_E", label: "Coverage E — Personal liability", limitAmount: 500000, sortOrder: 4 },
+        { policyId: simmonsHome.id, code: "COV_F", label: "Coverage F — Medical payments", limitAmount: 5000, sortOrder: 5 },
+        { policyId: simmonsHome.id, code: "DEDUCT", label: "All-perils deductible", deductibleAmount: 1000, sortOrder: 6 },
+        { policyId: simmonsHome.id, code: "WIND_HAIL", label: "Wind/hail deductible", deductibleText: "2% of Cov A", sortOrder: 7 },
+      ],
+    });
+    await prisma.dwelling.create({
+      data: { policyId: simmonsHome.id, addressLine1: "100 King St", city: "Charleston", state: "SC", zip: "29401", yearBuilt: 1996, construction: "Masonry veneer", roofType: "Architectural shingle", squareFeet: 2850, replacementCost: 465000, occupancy: "Owner", mortgageeName: "First Palmetto Bank, ISAOA", mortgageeClause: "ISAOA/ATIMA", loanNumber: "FPB-2287740" },
+    });
+    await prisma.scheduledItem.create({
+      data: { policyId: simmonsHome.id, type: "jewelry", description: "Diamond engagement ring (1.8ct)", value: 15000, appraisalOnFile: true },
+    });
+  }
+  const simmonsAuto = byPrefix("PA-PRO", 0);
+  if (simmonsAuto) {
+    await prisma.coverage.createMany({
+      data: [
+        { policyId: simmonsAuto.id, code: "BI", label: "Bodily injury liability", limitText: "100/300", sortOrder: 0 },
+        { policyId: simmonsAuto.id, code: "PD", label: "Property damage liability", limitAmount: 100000, sortOrder: 1 },
+        { policyId: simmonsAuto.id, code: "UM", label: "Uninsured/underinsured motorist", limitText: "100/300", sortOrder: 2 },
+        { policyId: simmonsAuto.id, code: "MED", label: "Medical payments", limitAmount: 5000, sortOrder: 3 },
+        { policyId: simmonsAuto.id, code: "COMP", label: "Comprehensive", deductibleAmount: 500, sortOrder: 4 },
+        { policyId: simmonsAuto.id, code: "COLL", label: "Collision", deductibleAmount: 500, sortOrder: 5 },
+      ],
+    });
+    const [walter, janet] = await Promise.all([
+      prisma.driver.create({ data: { policyId: simmonsAuto.id, name: "Walter Simmons", relationship: "Named insured", licenseNumber: "SC-DL-114477", licenseState: "SC" } }),
+      prisma.driver.create({ data: { policyId: simmonsAuto.id, name: "Janet Simmons", relationship: "Spouse", licenseNumber: "SC-DL-114478", licenseState: "SC" } }),
+    ]);
+    const v1 = await prisma.vehicle.create({
+      data: { policyId: simmonsAuto.id, year: 2020, make: "Toyota", model: "Highlander", vin: "5TDGZRBH2LS012345", garagingZip: "29401", usage: "commute", annualMiles: 12000, primaryDriverId: walter.id },
+    });
+    void v1;
+    await prisma.vehicle.create({
+      data: { policyId: simmonsAuto.id, year: 2018, make: "Honda", model: "CR-V", vin: "2HKRW2H85JH567890", garagingZip: "29401", usage: "pleasure", annualMiles: 7000, primaryDriverId: janet.id },
+    });
+  }
+
+  // ── X-dates (prior/competitor policies) ────────────────────────────
+  // Mix of prospect leads and existing clients with competitor coverage
+  // expiring soon — fuels the X-date dashboard tile + worklist.
+  await prisma.priorPolicy.createMany({
+    data: [
+      // Prospect Grace Thompson (client 20) — auto + umbrella elsewhere.
+      { clientId: clients[20]!.id, lineOfBusiness: "AUTO", currentCarrier: "State Farm", currentPremium: 1840, expirationDate: daysFromNow(18), notes: "Bundling target — quoting HO now, round out with auto." },
+      { clientId: clients[20]!.id, lineOfBusiness: "UMBRELLA", currentCarrier: "State Farm", currentPremium: 410, expirationDate: daysFromNow(18) },
+      // Existing client Maria Gonzalez (client 2) — competitor home not with us.
+      { clientId: clients[2]!.id, lineOfBusiness: "HOME", currentCarrier: "Allstate", currentPremium: 2480, expirationDate: daysFromNow(47), notes: "We write her auto; cross-sell HOME at her X-date." },
+      // Existing client Robert & Lisa Patel (client 8) — boat with competitor.
+      { clientId: clients[8]!.id, lineOfBusiness: "BOAT", currentCarrier: "GEICO Marine", currentPremium: 720, expirationDate: daysFromNow(74) },
+      // Overdue (acted late) — David Chen (client 4) home with competitor.
+      { clientId: clients[4]!.id, lineOfBusiness: "HOME", currentCarrier: "Farmers", currentPremium: 2200, expirationDate: daysFromNow(-9), notes: "Missed last cycle — follow up for next term." },
+    ],
+  });
+
   // Renewal records for policies expiring within 90 days.
   const soonExpiring = await prisma.policy.findMany({
     where: { status: { in: ["ACTIVE", "BOUND"] }, expirationDate: { lte: daysFromNow(90) } },
@@ -523,6 +656,11 @@ async function main() {
     });
     leads.push(lead);
   }
+
+  // Lead-based X-date (prospect Caleb Foster, lead 3 — competitor auto).
+  await prisma.priorPolicy.create({
+    data: { leadId: leads[3]!.id, lineOfBusiness: "AUTO", currentCarrier: "Progressive", currentPremium: 2600, expirationDate: daysFromNow(33), notes: "Teen driver added; shopping at renewal." },
+  });
 
   // ── Opportunities (pipeline) ───────────────────────────────────────
   const oppSpecs: Array<[string, "NEW" | "CONTACTED" | "QUOTING" | "PROPOSAL" | "BOUND" | "LOST", LineOfBusiness, number, number | null, typeof sarah]> = [

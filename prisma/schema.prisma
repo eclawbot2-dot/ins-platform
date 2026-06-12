@@ -75,22 +75,42 @@ enum TaskPriority {
 }
 
 enum LineOfBusiness {
-  // Personal lines
+  // ── Personal lines ──
   AUTO
   HOME
   RENTERS
   UMBRELLA
   LIFE
   HEALTH
-  // Commercial lines
+  // Personal — added Wave A (additive)
+  CONDO
+  FLOOD
+  MOTORCYCLE
+  BOAT
+  RV
+  VALUABLE_ARTICLES
+  PET
+  IDENTITY_THEFT
+  // ── Commercial lines ──
   GENERAL_LIABILITY
   COMMERCIAL_PROPERTY
   BOP
   WORKERS_COMP
   COMMERCIAL_AUTO
   CYBER
+  // PROFESSIONAL is the legacy "Professional / E&O" value; keep it.
+  // ERRORS_OMISSIONS is the explicit alias going forward.
   PROFESSIONAL
   INLAND_MARINE
+  // Commercial — added Wave A (additive)
+  ERRORS_OMISSIONS
+  COMMERCIAL_UMBRELLA
+  DIRECTORS_OFFICERS
+  EPLI
+  LIQUOR_LIABILITY
+  SURETY_BONDS
+  GARAGE
+  BUILDERS_RISK
 }
 
 enum PolicyStatus {
@@ -401,9 +421,33 @@ model Client {
   referrals     Referral[]
   portalUsers   User[]         @relation("ClientPortalUsers")
   portalInvites PortalInvite[]
+  priorPolicies PriorPolicy[]
 
   @@index([name])
   @@index([status])
+}
+
+// ── X-date capture (Wave A) ──────────────────────────────────────────
+// Competitor / prior-carrier policy data on a prospect or existing
+// client. The `expirationDate` is the X-date: the cross-sell / win-back
+// trigger. Many per client or lead.
+model PriorPolicy {
+  id             String         @id @default(cuid())
+  clientId       String?
+  client         Client?        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  leadId         String?
+  lead           Lead?          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lineOfBusiness LineOfBusiness
+  currentCarrier String?
+  currentPremium Decimal?       @db.Decimal(12, 2)
+  expirationDate DateTime // the X-date
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([expirationDate])
+  @@index([clientId])
+  @@index([leadId])
 }
 
 model Contact {
@@ -444,6 +488,7 @@ model Lead {
   activities    Activity[]
   tasks         Task[]
   referrals     Referral[]
+  priorPolicies PriorPolicy[]
 
   @@index([status])
   @@index([createdAt])
@@ -617,6 +662,14 @@ model Policy {
   statementLines       CommissionStatementLine[]
   boundFromQuote       Quote?                    @relation("QuoteBoundPolicy")
   boundFromOpportunity Opportunity?
+  // Wave A: coverage schedule + line-specific risk items.
+  coverages            Coverage[]
+  vehicles             Vehicle[]
+  drivers              Driver[]
+  dwellings            Dwelling[]
+  scheduledItems       ScheduledItem[]
+  watercraft           Watercraft[]
+  locations            InsuredLocation[]
 
   @@index([status])
   @@index([expirationDate])
@@ -642,6 +695,137 @@ model PolicyProducerSplit {
   pct        Decimal @db.Decimal(5, 2)
 
   @@unique([policyId, producerId])
+}
+
+// ── Coverage detail (Wave A keystone) ────────────────────────────────
+// A policy's coverage schedule: one row per coverage code/part. `code`
+// is the template code (e.g. BI, PD, COMP, COLL, COV_A…); free-text
+// limit/deductible fields hold values that don't reduce to a single
+// number (e.g. "100/300/100", "ACV", "1% of Cov A").
+model Coverage {
+  id              String   @id @default(cuid())
+  policyId        String
+  policy          Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  code            String
+  label           String
+  limitText       String?
+  limitAmount     Decimal? @db.Decimal(14, 2)
+  perOccurrence   Decimal? @db.Decimal(14, 2)
+  aggregate       Decimal? @db.Decimal(14, 2)
+  deductibleText  String?
+  deductibleAmount Decimal? @db.Decimal(12, 2)
+  premiumPart     Decimal? @db.Decimal(12, 2)
+  notes           String?
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([policyId])
+}
+
+// ── Line-specific risk items (all policyId-scoped, cascade) ──────────
+
+model Vehicle {
+  id             String   @id @default(cuid())
+  policyId       String
+  policy         Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  year           Int?
+  make           String?
+  model          String?
+  vin            String?
+  garagingZip    String?
+  usage          String? // commute / pleasure / business / farm
+  annualMiles    Int?
+  primaryDriverId String?
+  primaryDriver  Driver?  @relation("VehiclePrimaryDriver", fields: [primaryDriverId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+
+  @@index([policyId])
+}
+
+model Driver {
+  id            String   @id @default(cuid())
+  policyId      String
+  policy        Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  name          String
+  dob           DateTime?
+  licenseNumber String?
+  licenseState  String?
+  relationship  String? // named insured / spouse / child / other
+  createdAt     DateTime @default(now())
+
+  vehicles Vehicle[] @relation("VehiclePrimaryDriver")
+
+  @@index([policyId])
+}
+
+model Dwelling {
+  id              String   @id @default(cuid())
+  policyId        String
+  policy          Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  addressLine1    String?
+  addressLine2    String?
+  city            String?
+  state           String?
+  zip             String?
+  yearBuilt       Int?
+  construction    String? // frame / masonry / masonry veneer …
+  roofType        String?
+  squareFeet      Int?
+  replacementCost Decimal? @db.Decimal(14, 2)
+  occupancy       String? // owner / tenant / seasonal / vacant
+  mortgageeName   String?
+  mortgageeClause String?
+  loanNumber      String?
+  createdAt       DateTime @default(now())
+
+  @@index([policyId])
+}
+
+model ScheduledItem {
+  id              String   @id @default(cuid())
+  policyId        String
+  policy          Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  type            String // jewelry / fine-art / firearms / furs / collectibles …
+  description     String
+  value           Decimal  @db.Decimal(14, 2)
+  appraisalOnFile Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([policyId])
+}
+
+model Watercraft {
+  id        String   @id @default(cuid())
+  policyId  String
+  policy    Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  type      String? // bowrider / pontoon / sailboat / PWC …
+  year      Int?
+  make      String?
+  length    Decimal? @db.Decimal(6, 2)
+  hullId    String?
+  motorHp   Int?
+  createdAt DateTime @default(now())
+
+  @@index([policyId])
+}
+
+model InsuredLocation {
+  id            String   @id @default(cuid())
+  policyId      String
+  policy        Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  addressLine1  String?
+  addressLine2  String?
+  city          String?
+  state         String?
+  zip           String?
+  buildingValue Decimal? @db.Decimal(14, 2)
+  contentsValue Decimal? @db.Decimal(14, 2)
+  occupancy     String?
+  sqFt          Int?
+  yearBuilt     Int?
+  createdAt     DateTime @default(now())
+
+  @@index([policyId])
 }
 
 // ── Quoting ──────────────────────────────────────────────────────────

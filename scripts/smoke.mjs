@@ -61,6 +61,7 @@ const pages = [
   ["/policies", "Travelers"],
   ["/quotes", "Quot"],
   ["/renewals", "Renewal"],
+  ["/renewals/xdates", "X-date"],
   ["/claims", "CLM-"],
   ["/certificates", "COI-"],
   ["/certificates/holders", "Meridian"],
@@ -113,6 +114,29 @@ for (const [list, pattern] of [
   if (!id) { check(`detail ${list}/[id]`, false, "no record link found"); continue; }
   const res = await req(`${list}/${id}`);
   check(`GET ${list}/${id.slice(0, 8)}…`, res.status === 200);
+}
+
+// 4b. Coverage schedule renders on a policy detail page (Wave A).
+// A seeded GL policy carries an "Each occurrence" coverage; scan the
+// GL-HAR matches (the RENEWED predecessor has none, the ACTIVE term
+// does) until one detail page shows the populated schedule.
+{
+  const list = await req("/policies?q=GL-HAR");
+  const ids = [...(await list.text()).matchAll(/href="\/policies\/(c[a-z0-9]{15,})"/g)].map((m) => m[1]);
+  let ok = false;
+  for (const id of ids) {
+    const body = await (await req(`/policies/${id}`)).text();
+    if (body.includes("Coverage schedule") && body.toLowerCase().includes("each occurrence")) { ok = true; break; }
+  }
+  check("policy detail shows coverage schedule", ok, ids.length ? "" : "no GL policy link found");
+}
+
+// 4c. Client 360 surfaces the X-dates capture card.
+{
+  const list = await req("/clients");
+  const id = (await list.text()).match(/href="\/clients\/(c[a-z0-9]{15,})"/)?.[1];
+  const body = id ? await (await req(`/clients/${id}`)).text() : "";
+  check("client 360 shows X-dates card", body.includes("X-dates"));
 }
 
 // 5. Public lead intake (keyed) + auth rejection.
@@ -206,6 +230,18 @@ for (const [path, marker] of [
   const body = res.status === 200 ? await res.text() : "";
   const found = body.toLowerCase().includes(marker.toLowerCase());
   check(`GET ${path} (client)`, res.status === 200 && found, `status ${res.status}${found ? "" : `, marker "${marker}" missing`}`);
+}
+
+// 10b. Portal policy detail shows the read-only coverage schedule (Wave A).
+{
+  const list = await req("/portal/policies");
+  const id = (await list.text()).match(/href="\/portal\/policies\/(c[a-z0-9]{15,})"/)?.[1];
+  const body = id ? await (await req(`/portal/policies/${id}`)).text() : "";
+  check(
+    "portal policy detail shows coverage schedule",
+    body.includes("Coverage schedule"),
+    id ? "" : "no portal policy link found",
+  );
 }
 
 // 11. Role wall: a CLIENT session is terminally blocked from staff surfaces.

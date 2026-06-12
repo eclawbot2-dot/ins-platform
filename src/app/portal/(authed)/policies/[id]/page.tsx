@@ -9,6 +9,8 @@ import { DetailItem } from "@/components/ui/page-header";
 import { BILLING_LABELS, LOB_LABELS, POLICY_STATUS_LABELS, policyStatusTone } from "@/lib/labels";
 import { fmtMoney, fmtMoneyCents } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
+import { loadPolicyExisting } from "@/lib/domain/policy-detail";
+import { CoverageScheduleTable, RiskItems } from "@/components/policy/coverage-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,16 @@ export default async function PortalPolicyDetailPage({ params }: { params: Promi
   });
   if (!policy) notFound();
 
+  // Read-only coverage schedule + risk items for the client (no VIN/loan #).
+  const existing = await loadPolicyExisting(policy.id);
+  const hasRiskItems =
+    (existing.vehicles?.length ?? 0) +
+      (existing.dwellings?.length ?? 0) +
+      (existing.scheduledItems?.length ?? 0) +
+      (existing.watercraft?.length ?? 0) +
+      (existing.locations?.length ?? 0) >
+    0;
+
   return (
     <>
       <p className="mb-3 text-sm">
@@ -44,7 +56,7 @@ export default async function PortalPolicyDetailPage({ params }: { params: Promi
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="card-pad">
-          <h2 className="section-title mb-3">Coverage</h2>
+          <h2 className="section-title mb-3">Policy summary</h2>
           <dl className="grid grid-cols-2 gap-3">
             <DetailItem label="Carrier">{policy.carrier.name}</DetailItem>
             <DetailItem label="Carrier phone">{policy.carrier.phone}</DetailItem>
@@ -82,6 +94,18 @@ export default async function PortalPolicyDetailPage({ params }: { params: Promi
           )}
         </div>
       </div>
+
+      <div className="card-pad mt-4">
+        <h2 className="section-title mb-3">Coverage schedule</h2>
+        <CoverageScheduleTable coverages={existing.coverages ?? []} />
+      </div>
+
+      {hasRiskItems ? (
+        <div className="card-pad mt-4">
+          <h2 className="section-title mb-3">Insured items</h2>
+          <RiskItems items={existing} />
+        </div>
+      ) : null}
 
       {policy.endorsements.length > 0 ? (
         <div className="card-pad mt-4">
