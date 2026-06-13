@@ -331,6 +331,16 @@ check("public leads accepts valid key", goodLead.status === 201 && leadJson.ok =
   const hpRes = await fetch(`${BASE}/api/public/compare`, { method: "POST", body: hp });
   check("public compare honeypot silently accepts (200)", hpRes.status === 200, `status ${hpRes.status}`);
 
+  // Magic-byte guard: bytes declaring application/pdf but NOT a real PDF
+  // (here an "MZ" exe header) are rejected 415 — declared type can't be trusted.
+  const spoof = new FormData();
+  spoof.set("name", "Spoof Upload");
+  spoof.set("email", "spoof@example.com");
+  const fakePdf = new Blob([new Uint8Array([0x4d, 0x5a, 0x90, 0x00, 0x03])], { type: "application/pdf" });
+  spoof.set("file", fakePdf, "policy.pdf");
+  const spoofRes = await fetch(`${BASE}/api/public/compare`, { method: "POST", body: spoof });
+  check("public compare rejects a spoofed-type file (415)", spoofRes.status === 415, `status ${spoofRes.status}`);
+
   // The public results page renders for the just-created analysis.
   if (subJson.analysisId) {
     const result = await fetch(`${BASE}/compare/${subJson.analysisId}`, { redirect: "manual" });

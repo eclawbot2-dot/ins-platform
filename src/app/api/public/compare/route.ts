@@ -5,7 +5,7 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 import { scoreLead } from "@/lib/domain/lead-scoring";
 import { addDays } from "@/lib/domain/dates";
 import { runUploadAnalysis } from "@/lib/ai/analysis-service";
-import { MAX_UPLOAD_BYTES, isAllowedMime } from "@/lib/storage";
+import { MAX_UPLOAD_BYTES, isAllowedMime, sniffBinaryMime, mimeMatchesBytes } from "@/lib/storage";
 import { log } from "@/lib/log";
 import { ALL_LOBS } from "@/lib/labels";
 import type { LineOfBusiness } from "@prisma/client";
@@ -114,8 +114,23 @@ export async function POST(req: NextRequest) {
     if (file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json({ error: "file exceeds 25 MB" }, { status: 413, headers: CORS_HEADERS });
     }
-    if (!isAllowedMime(file.type || "application/octet-stream")) {
+    const declared = file.type || "application/octet-stream";
+    if (!isAllowedMime(declared)) {
       return NextResponse.json({ error: `file type ${file.type} not allowed` }, { status: 415, headers: CORS_HEADERS });
+    }
+    // Magic-byte check on the PUBLIC path: a client controls Content-Type but
+    // not the bytes. The funnel only meaningfully processes PDFs/images, so a
+    // file declaring one of those types must actually be that type — a payload
+    // whose bytes don't match its declared image/pdf type is rejected (a .exe
+    // renamed application/pdf never reaches storage or the extractor).
+    if (declared === "application/pdf" || declared.startsWith("image/")) {
+      const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+      if (!mimeMatchesBytes(declared, sniffBinaryMime(head))) {
+        return NextResponse.json(
+          { error: "the uploaded file's contents don't match its type" },
+          { status: 415, headers: CORS_HEADERS },
+        );
+      }
     }
   }
   if (!file && !data.details) {
