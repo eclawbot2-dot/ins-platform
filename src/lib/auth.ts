@@ -134,6 +134,37 @@ export async function requireAdmin(): Promise<AppSession> {
 }
 
 /**
+ * Route-handler guard for STAFF API endpoints (CSV exports, etc.). Returns
+ * the session on success, or a `Response` (401/403) to return directly —
+ * NEVER throws, so a route handler doesn't 500 on an unauthenticated hit.
+ *
+ * Defense in depth on top of the middleware route wall: these endpoints
+ * surface the whole book (premiums, commissions, AR, lead ROI), so they
+ * re-assert the auth wall at the handler — a CLIENT session or no session
+ * is terminally closed even if the edge guard were ever bypassed.
+ *
+ *   const gate = await requireApiSession();
+ *   if (gate instanceof Response) return gate;
+ *   // gate is AppSession here
+ */
+export async function requireApiSession(): Promise<AppSession | Response> {
+  const session = (await auth()) as AppSession | null;
+  if (!session?.userId) {
+    return new Response(JSON.stringify({ error: "unauthenticated" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  if (session.role === "CLIENT") {
+    return new Response(JSON.stringify({ error: "forbidden" }), {
+      status: 403,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  return session;
+}
+
+/**
  * Require a signed-in CLIENT (portal) session with a linked Client.
  * Throws on staff or unlinked sessions — portal server actions must
  * never run with a staff identity, and every portal query is scoped by

@@ -2,8 +2,11 @@ import type { NextRequest } from "next/server";
 import { producerProduction } from "@/lib/reports/production";
 import { csvResponse } from "@/lib/csv-response";
 import { startOfYear } from "@/lib/domain/dates";
+import { requireApiSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  const gate = await requireApiSession();
+  if (gate instanceof Response) return gate;
   const from = req.nextUrl.searchParams.get("from");
   const to = req.nextUrl.searchParams.get("to");
   const rows = await producerProduction({

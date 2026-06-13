@@ -1,8 +1,11 @@
 import { atRiskWorklist } from "@/lib/reports/client-health";
 import { HEALTH_TIER_LABELS } from "@/lib/domain/client-health";
 import { csvResponse } from "@/lib/csv-response";
+import { requireApiSession } from "@/lib/auth";
 
 export async function GET() {
+  const gate = await requireApiSession();
+  if (gate instanceof Response) return gate;
   const rows = await atRiskWorklist();
   return csvResponse(
     "at-risk-clients.csv",

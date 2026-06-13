@@ -72,8 +72,17 @@ describe("touchpoint engine — DB integration", () => {
     const { evaluateTouchpoints } = await import("@/lib/touchpoint-engine");
     const asOf = new Date();
 
-    await evaluateTouchpoints(asOf, false);
-    await evaluateTouchpoints(asOf, false); // re-run must be a no-op (idempotency @unique)
+    // First run schedules the two eligible (opted-in + appreciation-opted-out)
+    // clients — the do-not-contact client is skipped at SCHEDULE time. Filtering
+    // to our own template makes the count assertions robust against any other
+    // active templates in the shared DB.
+    const first = await evaluateTouchpoints(asOf, false);
+    expect(first.created).toBeGreaterThanOrEqual(2);
+    // Re-run with the same asOf must be a no-op across the whole book: the
+    // @unique idempotencyKey means ZERO new rows, so `created` reports 0 (not
+    // the inflated all-rows count the old per-row upsert reported every re-run).
+    const second = await evaluateTouchpoints(asOf, false);
+    expect(second.created).toBe(0);
 
     const rows = await prisma.scheduledTouchpoint.findMany({ where: { templateKey: ids.tplBday } });
     const byClient = new Map(rows.map((r) => [r.clientId, r]));

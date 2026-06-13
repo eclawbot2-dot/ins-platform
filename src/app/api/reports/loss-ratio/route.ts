@@ -1,7 +1,10 @@
 import { lossRatioReport } from "@/lib/reports/loss-ratio";
 import { csvResponse } from "@/lib/csv-response";
+import { requireApiSession } from "@/lib/auth";
 
 export async function GET(req: Request) {
+  const gate = await requireApiSession();
+  if (gate instanceof Response) return gate;
   const by = new URL(req.url).searchParams.get("by") === "lob" ? "lob" : "carrier";
   const report = await lossRatioReport();
   const rows = (by === "lob" ? report.byLob : report.byCarrier).map((r) => ({

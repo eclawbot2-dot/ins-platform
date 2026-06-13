@@ -1,7 +1,10 @@
 import { leadRoi } from "@/lib/reports/lead-roi";
 import { csvResponse } from "@/lib/csv-response";
+import { requireApiSession } from "@/lib/auth";
 
 export async function GET() {
+  const gate = await requireApiSession();
+  if (gate instanceof Response) return gate;
   const { sources } = await leadRoi();
   return csvResponse(
     "lead-source-roi.csv",

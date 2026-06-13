@@ -214,34 +214,40 @@ export async function evaluateTouchpoints(asOf: Date = new Date(), dryRun = fals
     }
   }
 
-  // Pass 3 — persist the surviving decisions.
-  for (const { client, template, decision } of decisions) {
-    if (suppressed.has(`${template.key}:${client.id}`)) continue;
-    {
+  // Pass 3 — persist the surviving decisions. Collect the create payloads,
+  // then insert in one createMany with skipDuplicates: the @unique
+  // idempotencyKey makes a re-run a no-op AND the returned `count` is the
+  // number of rows ACTUALLY inserted — so `created` reflects genuinely new
+  // schedules, not matched-existing rows (the old per-row upsert always
+  // counted every row as "created", inflating the cron audit on every re-run).
+  const toCreate = decisions
+    .filter(({ client, template }) => !suppressed.has(`${template.key}:${client.id}`))
+    .map(({ client, template, decision }) => {
       result.due += 1;
-      if (dryRun) continue;
-      try {
-        const created = await prisma.scheduledTouchpoint.upsert({
-          where: { idempotencyKey: decision.idempotencyKey },
-          update: {}, // idempotent — never overwrite an already-scheduled row
-          create: {
-            clientId: client.id,
-            templateKey: template.key,
-            channel: template.channel,
-            status: template.requiresApproval ? "PENDING" : "APPROVED",
-            scheduledFor: decision.scheduledFor,
-            relatedType: decision.relatedType,
-            relatedId: decision.relatedId,
-            idempotencyKey: decision.idempotencyKey,
-          },
-        });
-        // upsert returns the row whether created or matched; count creates
-        // by checking createdAt freshness is unreliable, so re-query intent:
-        result.created += 1;
-        void created;
-      } catch {
-        result.skipped += 1;
-      }
+      return {
+        clientId: client.id,
+        templateKey: template.key,
+        channel: template.channel,
+        status: (template.requiresApproval ? "PENDING" : "APPROVED") as TouchpointStatus,
+        scheduledFor: decision.scheduledFor,
+        relatedType: decision.relatedType,
+        relatedId: decision.relatedId,
+        idempotencyKey: decision.idempotencyKey,
+      };
+    });
+
+  if (!dryRun && toCreate.length > 0) {
+    try {
+      const { count } = await prisma.scheduledTouchpoint.createMany({
+        data: toCreate,
+        skipDuplicates: true,
+      });
+      result.created = count;
+      result.skipped = toCreate.length - count;
+    } catch (err) {
+      // A bulk insert failure shouldn't lose the whole run silently.
+      log.warn("touchpoint evaluate: bulk schedule failed", { module: "touchpoints" }, err);
+      result.skipped = toCreate.length;
     }
   }
   return result;
@@ -408,6 +414,3 @@ export async function scheduleTouchpoint(
     log.warn("scheduleTouchpoint failed (non-fatal)", { module: "touchpoints", templateKey, clientId }, err);
   }
 }
-
-/** Convenience for status filters in the staff queue. */
-export const TOUCHPOINT_STATUSES: TouchpointStatus[] = ["PENDING", "APPROVED", "SENT", "SKIPPED", "FAILED"];
