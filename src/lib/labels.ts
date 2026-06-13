@@ -355,7 +355,7 @@ export function humanize(v: string): string {
     .replace(/^\w/, (c) => c.toUpperCase());
 }
 
-// ── Wave D-final: household / surplus-lines / appetite / e-sign / benefits
+// ── Wave D-final: household / surplus-lines / appetite / e-sign
 
 import type {
   HouseholdRole,
@@ -364,8 +364,6 @@ import type {
   SignatureProvider,
   SignatureStatus,
   SignatureDocKind,
-  GroupPlanType,
-  RateBasis,
 } from "@prisma/client";
 
 export const HOUSEHOLD_ROLE_LABELS: Record<HouseholdRole, string> = {
@@ -445,22 +443,4 @@ export const SIGNATURE_DOC_KIND_LABELS: Record<SignatureDocKind, string> = {
   EOI: "Evidence of property",
   POLICY_DOC: "Policy document",
   OTHER: "Other document",
-};
-
-export const GROUP_PLAN_TYPE_LABELS: Record<GroupPlanType, string> = {
-  GROUP_HEALTH: "Group Health",
-  GROUP_DENTAL: "Group Dental",
-  GROUP_VISION: "Group Vision",
-  GROUP_LIFE: "Group Life",
-  GROUP_DISABILITY: "Group Disability",
-  GROUP_ACCIDENT: "Group Accident",
-  OTHER: "Other group plan",
-};
-
-export const RATE_BASIS_LABELS: Record<RateBasis, string> = {
-  PEPM: "Per employee / month",
-  PMPM: "Per member / month",
-  COMPOSITE: "Composite",
-  AGE_BANDED: "Age-banded",
-  OTHER: "Other",
 };

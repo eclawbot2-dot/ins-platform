@@ -25,7 +25,6 @@ import {
   Home,
   Compass,
   PenTool,
-  Stethoscope,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -62,7 +61,6 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/signatures", label: "E-signatures", icon: PenTool },
       { href: "/carriers", label: "Carriers", icon: Building2 },
       { href: "/markets", label: "Market finder", icon: Compass },
-      { href: "/benefits", label: "Benefits", icon: Stethoscope },
       { href: "/documents", label: "Documents", icon: FolderOpen },
     ],
   },

@@ -84,7 +84,6 @@ async function main() {
     // Wave D-final.
     prisma.surplusLinesFiling.deleteMany(),
     prisma.signatureRequest.deleteMany(),
-    prisma.groupPlan.deleteMany(),
     prisma.carrierAppetiteRow.deleteMany(),
     prisma.policy.deleteMany(),
     prisma.lead.deleteMany(),
@@ -1606,25 +1605,6 @@ async function main() {
       createdById: james.id,
     },
   });
-
-  // A group benefits plan for an employer client (light stub module).
-  await prisma.groupPlan.create({
-    data: {
-      clientId: clients[1]!.id,
-      planType: "GROUP_HEALTH",
-      planName: "2026 Group Medical PPO",
-      carrierName: "Blue Cross Blue Shield SC",
-      groupNumber: "GRP-HARB-2026",
-      effectiveDate: new Date(new Date().getFullYear(), 0, 1),
-      renewalDate: new Date(new Date().getFullYear() + 1, 0, 1),
-      eligibleCount: 42,
-      enrolledCount: 31,
-      rateBasis: "PEPM",
-      monthlyPremium: 24800,
-      notes: "Renews 1/1. Considering adding a dental line at renewal.",
-    },
-  });
-  await prisma.client.update({ where: { id: clients[1]!.id }, data: { hasBenefits: true } });
 
   // ── Summary ────────────────────────────────────────────────────────
   const counts = await prisma.$transaction([

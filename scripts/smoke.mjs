@@ -71,7 +71,6 @@ const pages = [
   ["/carriers", "Progressive"],
   ["/markets", "Market finder"],
   ["/signatures", "signature"],
-  ["/benefits", "benefits"],
   ["/documents", "declarations"],
   ["/commissions", "statement"],
   ["/commissions/payables", "payable"],
