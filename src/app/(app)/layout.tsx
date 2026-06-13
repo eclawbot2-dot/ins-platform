@@ -8,6 +8,10 @@ import { FlashToast } from "@/components/ui/toast";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.userId) redirect("/login");
+  // Role wall, defense-in-depth on the middleware: a CLIENT session must never
+  // render the staff shell (which would leak its RSC payload), so bounce it to
+  // the portal with a returning redirect BEFORE any staff page renders.
+  if (session.role === "CLIENT") redirect("/portal");
 
   const userName = session.user?.name ?? "User";
   const userRole = String(session.role ?? "CSR");
