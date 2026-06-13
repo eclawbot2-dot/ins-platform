@@ -9,7 +9,7 @@ import { STAGE_ORDER, pipelineValue, weightedPipelineValue, winRate } from "@/li
 import { fmtMoney, toNum } from "@/lib/money";
 import { fmtDate } from "@/lib/domain/dates";
 import { StatCard } from "@/components/ui/stat-card";
-import { createOpportunity, moveOpportunity } from "./actions";
+import { createOpportunity, moveOpportunity, updateOpportunity } from "./actions";
 import type { OpportunityStage } from "@prisma/client";
 
 export const metadata = { title: "Pipeline" };
@@ -92,6 +92,40 @@ export default async function OpportunitiesPage() {
                         </form>
                       </div>
                     ) : null}
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-xs text-navy-700">Edit details</summary>
+                      <form action={updateOpportunity.bind(null, o.id)} className="mt-2 space-y-2">
+                        <input name="name" defaultValue={o.name} className="input text-sm" aria-label="Name" required />
+                        <Select
+                          name="lineOfBusiness"
+                          defaultValue={o.lineOfBusiness}
+                          options={ALL_LOBS.map((l) => ({ value: l, label: LOB_LABELS[l] }))}
+                        />
+                        <Select name="stage" defaultValue={o.stage} options={STAGE_ORDER.map((s) => ({ value: s, label: STAGE_LABELS[s] }))} />
+                        <input
+                          name="premiumEstimate"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          defaultValue={o.premiumEstimate ? toNum(o.premiumEstimate) : ""}
+                          className="input text-sm"
+                          aria-label="Premium estimate"
+                        />
+                        <input
+                          name="expectedCloseDate"
+                          type="date"
+                          defaultValue={o.expectedCloseDate ? o.expectedCloseDate.toISOString().slice(0, 10) : ""}
+                          className="input text-sm"
+                          aria-label="Expected close date"
+                        />
+                        <Select
+                          name="ownerId"
+                          defaultValue={o.ownerId}
+                          options={users.map((u) => ({ value: u.id, label: u.name }))}
+                        />
+                        <button type="submit" className="btn btn-sm">Save</button>
+                      </form>
+                    </details>
                   </div>
                 ))}
                 {stageOpps.length === 0 ? <div className="py-4 text-center text-xs text-slate-300">Empty</div> : null}

@@ -52,5 +52,6 @@ export async function updateOpportunity(id: string, formData: FormData) {
       ownerId: fStrOpt(formData, "ownerId") ?? undefined,
     },
   });
+  revalidatePath("/opportunities");
   redirect(`/opportunities?toast=${encodeURIComponent("Opportunity updated")}`);
 }

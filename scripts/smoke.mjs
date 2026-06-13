@@ -58,7 +58,7 @@ const pages = [
   ["/clients", "Harborview"],
   ["/households", "household"],
   ["/leads", "Thompson"],
-  ["/opportunities", "Pipeline"],
+  ["/opportunities", "Edit details"],
   ["/policies", "Travelers"],
   ["/quotes", "Quot"],
   ["/renewals", "Renewal"],
