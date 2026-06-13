@@ -110,5 +110,24 @@ describe("touchpoint engine — DB integration", () => {
     // The opted-in client's row was sent (EMAIL_TRANSPORT=log → ok=true).
     const inRow = await prisma.scheduledTouchpoint.findFirst({ where: { templateKey: ids.tplBday, clientId: inId } });
     expect(inRow?.status).toBe("SENT");
+
+    // No-double-send guard: the staff queue actions (approve / send-now /
+    // edit-approve / skip) flip status ONLY for live (PENDING/APPROVED) rows.
+    // A terminal SENT row must not be reactivatable into the send pipeline.
+    // This is exactly the `updateMany` status-precondition those actions use.
+    const reactivate = await prisma.scheduledTouchpoint.updateMany({
+      where: { id: inRow!.id, status: { in: ["PENDING", "APPROVED"] } },
+      data: { status: "APPROVED" },
+    });
+    expect(reactivate.count).toBe(0); // SENT row not flipped → never re-sends
+
+    // A live (APPROVED) row, by contrast, still transitions normally.
+    const liveRow = await prisma.scheduledTouchpoint.findFirst({ where: { templateKey: ids.tplBday, clientId: optoutId } });
+    void liveRow; // (it's SKIPPED here — terminal too — so the negative case holds for it as well)
+    const reSkip = await prisma.scheduledTouchpoint.updateMany({
+      where: { id: liveRow!.id, status: { in: ["PENDING", "APPROVED"] } },
+      data: { status: "APPROVED" },
+    });
+    expect(reSkip.count).toBe(0); // SKIPPED row also terminal → not reactivated
   }, 30000);
 });

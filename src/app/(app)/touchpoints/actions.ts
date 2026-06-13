@@ -8,21 +8,31 @@ import { audit } from "@/lib/audit";
 import { fStr, fStrOpt, fNum, fBool, fEnum } from "@/lib/form";
 import { sendDueTouchpoints } from "@/lib/touchpoint-engine";
 import { addDays } from "@/lib/domain/dates";
-import type { TouchpointCategory, TouchpointTrigger, TouchpointChannel } from "@prisma/client";
+import type { TouchpointCategory, TouchpointTrigger, TouchpointChannel, TouchpointStatus } from "@prisma/client";
 
 const CATEGORIES: TouchpointCategory[] = ["ONBOARDING", "RENEWAL", "PAYMENT", "CLAIM", "APPRECIATION", "SATISFACTION", "OFFBOARDING"];
 const TRIGGERS: TouchpointTrigger[] = ["RENEWAL_RELATIVE", "PAYMENT_DUE_RELATIVE", "BIRTHDAY", "POLICY_ANNIVERSARY", "HOLIDAY", "TENURE_MILESTONE", "LIFECYCLE_EVENT", "MANUAL"];
 const CHANNELS: TouchpointChannel[] = ["EMAIL", "SMS"];
+
+// Only PENDING/APPROVED rows are still "live" — a SENT, SKIPPED or FAILED row
+// is terminal and must NEVER be flipped back into the APPROVED send pipeline
+// (that would re-send an already-delivered email). The queue UI only renders
+// these actions for live rows, but the server actions are directly invocable,
+// so the transition itself is guarded with a status precondition.
+const LIVE_STATUSES: TouchpointStatus[] = ["PENDING", "APPROVED"];
 
 // ── Queue actions ────────────────────────────────────────────────────
 
 /** Approve a PENDING touchpoint → APPROVED (the send sweep will pick it up). */
 export async function approveTouchpoint(id: string) {
   const session = await requireSession();
-  await prisma.scheduledTouchpoint.update({
-    where: { id },
+  const { count } = await prisma.scheduledTouchpoint.updateMany({
+    where: { id, status: { in: LIVE_STATUSES } },
     data: { status: "APPROVED", approvedById: session.userId },
   });
+  if (count === 0) {
+    redirect(`/touchpoints?toastError=${encodeURIComponent("That touchpoint already sent or was skipped")}`);
+  }
   await audit({ userId: session.userId, action: "TOUCHPOINT_APPROVE", entityType: "ScheduledTouchpoint", entityId: id });
   revalidatePath("/touchpoints");
   redirect(`/touchpoints?toast=${encodeURIComponent("Touchpoint approved")}`);
@@ -33,33 +43,41 @@ export async function editAndApproveTouchpoint(id: string, formData: FormData) {
   const session = await requireSession();
   const subject = fStrOpt(formData, "renderedSubject");
   const body = fStrOpt(formData, "renderedBody");
-  await prisma.scheduledTouchpoint.update({
-    where: { id },
+  const { count } = await prisma.scheduledTouchpoint.updateMany({
+    where: { id, status: { in: LIVE_STATUSES } },
     data: { status: "APPROVED", approvedById: session.userId, renderedSubject: subject, renderedBody: body },
   });
+  if (count === 0) {
+    redirect(`/touchpoints?toastError=${encodeURIComponent("That touchpoint already sent or was skipped")}`);
+  }
   await audit({ userId: session.userId, action: "TOUCHPOINT_EDIT_APPROVE", entityType: "ScheduledTouchpoint", entityId: id });
   revalidatePath("/touchpoints");
   redirect(`/touchpoints?toast=${encodeURIComponent("Touchpoint edited and approved")}`);
 }
 
-/** Skip a touchpoint — it will never send. */
+/** Skip a touchpoint — it will never send. Only a live row can be skipped. */
 export async function skipTouchpoint(id: string) {
   const session = await requireSession();
-  await prisma.scheduledTouchpoint.update({
-    where: { id },
+  const { count } = await prisma.scheduledTouchpoint.updateMany({
+    where: { id, status: { in: LIVE_STATUSES } },
     data: { status: "SKIPPED", failureReason: "skipped by staff" },
   });
+  if (count === 0) {
+    redirect(`/touchpoints?toastError=${encodeURIComponent("That touchpoint already sent or was skipped")}`);
+  }
   await audit({ userId: session.userId, action: "TOUCHPOINT_SKIP", entityType: "ScheduledTouchpoint", entityId: id });
   revalidatePath("/touchpoints");
   redirect(`/touchpoints?toast=${encodeURIComponent("Touchpoint skipped")}`);
 }
 
-/** Push a touchpoint's scheduledFor out by N days (keeps its current status). */
+/** Push a touchpoint's scheduledFor out by N days. Only a live row snoozes. */
 export async function snoozeTouchpoint(id: string, formData: FormData) {
   const session = await requireSession();
   const days = Math.max(1, fNum(formData, "days", 7));
   const row = await prisma.scheduledTouchpoint.findUnique({ where: { id } });
-  if (!row) redirect(`/touchpoints?toastError=${encodeURIComponent("Touchpoint not found")}`);
+  if (!row || !LIVE_STATUSES.includes(row.status)) {
+    redirect(`/touchpoints?toastError=${encodeURIComponent("That touchpoint already sent or was skipped")}`);
+  }
   await prisma.scheduledTouchpoint.update({
     where: { id },
     data: { scheduledFor: addDays(row.scheduledFor, days) },
@@ -69,13 +87,22 @@ export async function snoozeTouchpoint(id: string, formData: FormData) {
   redirect(`/touchpoints?toast=${encodeURIComponent(`Snoozed ${days} days`)}`);
 }
 
-/** Approve and immediately run the send sweep so this row goes out now. */
+/**
+ * Approve and immediately run the send sweep so this row goes out now.
+ * Guarded with a status precondition: a SENT/SKIPPED/FAILED row can NOT be
+ * flipped back to APPROVED here, so re-invoking this action on an already-sent
+ * row never re-sends the email (the @unique idempotency is on scheduling; this
+ * is the corresponding no-double-send guard on the manual send path).
+ */
 export async function sendNowTouchpoint(id: string) {
   const session = await requireSession();
-  await prisma.scheduledTouchpoint.update({
-    where: { id },
+  const { count } = await prisma.scheduledTouchpoint.updateMany({
+    where: { id, status: { in: LIVE_STATUSES } },
     data: { status: "APPROVED", approvedById: session.userId, scheduledFor: new Date() },
   });
+  if (count === 0) {
+    redirect(`/touchpoints?toastError=${encodeURIComponent("That touchpoint already sent or was skipped")}`);
+  }
   const result = await sendDueTouchpoints(new Date());
   await audit({ userId: session.userId, action: "TOUCHPOINT_SEND_NOW", entityType: "ScheduledTouchpoint", entityId: id, detail: `sent ${result.sent}` });
   revalidatePath("/touchpoints");
