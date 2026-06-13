@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { isPortalHost } from "@/lib/redirect";
 
 /**
  * Route protection at the edge. Everything requires a session except
@@ -54,6 +55,10 @@ function isPortalPath(pathname: string): boolean {
   return pathname === "/portal" || pathname.startsWith("/portal/") || pathname.startsWith("/api/portal/");
 }
 
+function hostOf(req: NextRequest): string | null {
+  return req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? req.nextUrl.host;
+}
+
 function redirectTo(req: NextRequest, pathname: string, search = ""): NextResponse {
   const url = req.nextUrl.clone();
   url.pathname = pathname;
@@ -63,6 +68,18 @@ function redirectTo(req: NextRequest, pathname: string, search = ""): NextRespon
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // ROOT ROUTING BY HOST — the portal vanity host (portal.taboragency.com)
+  // must land clients in the PORTAL, never the staff app. Previously "/"
+  // unconditionally redirected to /dashboard, which on the portal host
+  // bounced unauthenticated visitors to the STAFF /login. Send the portal
+  // host's root into /portal (the role wall + requirePortalSession then
+  // route authed clients to their dashboard and unauthed to /portal/login).
+  // The staff host's root falls through to the page → /dashboard.
+  if (pathname === "/" && isPortalHost(hostOf(req))) {
+    return redirectTo(req, "/portal");
+  }
+
   if (isPublic(pathname)) return NextResponse.next();
 
   const opts = {

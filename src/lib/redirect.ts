@@ -16,6 +16,21 @@ export function isSafeRedirect(url: string): boolean {
 }
 
 /**
+ * Is this request arriving on the client-portal vanity host
+ * (portal.taboragency.com)? Configurable via PORTAL_HOST; falls back to a
+ * "host starts with portal." heuristic so the vanity host is detected even
+ * before the env is set. The staff host (ins.jahdev.com) is NOT a portal
+ * host, so staff flows are never re-routed.
+ */
+export function isPortalHost(host: string | null | undefined): boolean {
+  if (!host) return false;
+  const h = host.split(":")[0]!.trim().toLowerCase();
+  const configured = (process.env.PORTAL_HOST ?? "").split(":")[0]!.trim().toLowerCase();
+  if (configured && h === configured) return true;
+  return h.startsWith("portal.");
+}
+
+/**
  * Proxy-safe in-app redirect (303 See Other by default).
  *
  * This app runs behind a Cloudflare tunnel (public ins.jahdev.com ->

@@ -3,7 +3,7 @@ import { requirePortalSession } from "@/lib/portal";
 import { portalPolicyWhere } from "@/lib/domain/portal-scope";
 import { LOB_LABELS } from "@/lib/labels";
 import { fmtDate } from "@/lib/domain/dates";
-import { portalRequestCertificate } from "../actions";
+import { portalRequestCertificate, portalRequestEoi } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +93,47 @@ export default async function PortalCertificatesPage() {
             </ul>
           )}
         </div>
+      </div>
+
+      <div className="card-pad mt-4">
+        <h2 className="section-title mb-1">Evidence of property (for your lender)</h2>
+        <p className="mb-3 text-sm text-slate-500">
+          Buying or refinancing a home? Request evidence of insurance for your mortgagee or lender.
+        </p>
+        <form action={portalRequestEoi} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="label" htmlFor="eoi-policy">Property policy</label>
+            <select id="eoi-policy" name="policyId" className="input" defaultValue="" required>
+              <option value="">Select a policy…</option>
+              {policies.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {LOB_LABELS[p.lineOfBusiness]} — {p.policyNumber}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label" htmlFor="eoi-holder">Mortgagee / lender name</label>
+            <input id="eoi-holder" name="holderName" className="input" required placeholder="e.g. First National Bank" />
+          </div>
+          <div>
+            <label className="label" htmlFor="eoi-loan">Loan number</label>
+            <input id="eoi-loan" name="loanNumber" className="input" />
+          </div>
+          <div>
+            <label className="label" htmlFor="eoi-holder-address">Lender address</label>
+            <input id="eoi-holder-address" name="holderAddress" className="input" />
+          </div>
+          <div>
+            <label className="label" htmlFor="eoi-holder-email">Lender email</label>
+            <input id="eoi-holder-email" name="holderEmail" type="email" className="input" />
+          </div>
+          <div className="sm:col-span-2">
+            <button type="submit" className="btn-primary w-full justify-center py-2.5 sm:w-auto">
+              Request evidence of property
+            </button>
+          </div>
+        </form>
       </div>
     </>
   );

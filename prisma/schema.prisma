@@ -391,6 +391,75 @@ enum IntegrationProvider {
   XERO
 }
 
+// ── Wave D-final: household / surplus-lines / appetite / e-sign / benefits
+
+enum HouseholdRole {
+  PRIMARY
+  SPOUSE
+  PARTNER
+  CHILD
+  PARENT
+  DEPENDENT
+  OTHER
+}
+
+enum SurplusLinesStatus {
+  PENDING // policy is surplus-lines but not yet filed
+  FILED // filing submitted to the state stamping office
+  EXEMPT // exempt from filing (e.g. industrial-insured exemption)
+  VOID
+}
+
+enum CarrierAppetite {
+  PREFERRED // actively wants this risk
+  STANDARD // will write it
+  RESTRICTED // case-by-case / referral
+  DECLINE // will not write
+}
+
+enum SignatureProvider {
+  MANUAL // no e-sign provider configured — print + wet-sign / manual mark
+  DOCUSIGN // dormant adapter seam
+  DROPBOX_SIGN // dormant adapter seam
+}
+
+enum SignatureStatus {
+  DRAFT
+  SENT // envelope dispatched to signer(s)
+  VIEWED
+  SIGNED // all signers complete
+  DECLINED
+  VOIDED
+  EXPIRED
+}
+
+enum SignatureDocKind {
+  PROPOSAL
+  APPLICATION
+  COI
+  EOI
+  POLICY_DOC
+  OTHER
+}
+
+enum GroupPlanType {
+  GROUP_HEALTH
+  GROUP_DENTAL
+  GROUP_VISION
+  GROUP_LIFE
+  GROUP_DISABILITY
+  GROUP_ACCIDENT
+  OTHER
+}
+
+enum RateBasis {
+  PEPM // per employee per month
+  PMPM // per member per month
+  COMPOSITE
+  AGE_BANDED
+  OTHER
+}
+
 enum ConnectionStatus {
   CONNECTED
   TOKEN_EXPIRED
@@ -450,6 +519,7 @@ model User {
   auditLogs          AuditLog[]
   approvedTouchpoints ScheduledTouchpoint[] @relation("TouchpointApprover")
   policyAnalyses     PolicyAnalysis[]       @relation("PolicyAnalysisCreator")
+  signatureRequests  SignatureRequest[]     @relation("SignatureRequestCreator")
 }
 
 model PasswordResetToken {
@@ -566,6 +636,12 @@ model Client {
   industry     String?
   source       String?
   notes        String?
+  // Wave D-final: this client is an EMPLOYER with employee-benefits lines.
+  hasBenefits  Boolean      @default(false)
+  // Household this client belongs to (related family/members share a 360).
+  householdId  String?
+  household    Household?   @relation(fields: [householdId], references: [id], onDelete: SetNull)
+  householdRole HouseholdRole @default(OTHER)
   producerId   String?
   producer     User?        @relation("ClientProducer", fields: [producerId], references: [id], onDelete: SetNull)
   csrId        String?
@@ -594,9 +670,14 @@ model Client {
   commPrefs            ClientCommunicationPreferences?
   // AI Compare / coverage-analysis tool.
   policyAnalyses       PolicyAnalysis[]
+  // Wave D-final.
+  primaryOfHousehold   Household[]    @relation("HouseholdPrimary")
+  groupPlans           GroupPlan[]
+  signatureRequests    SignatureRequest[]
 
   @@index([name])
   @@index([status])
+  @@index([householdId])
 }
 
 // ── X-date capture (Wave A) ──────────────────────────────────────────
@@ -758,11 +839,18 @@ model Carrier {
   appointmentExpiresAt DateTime?
   isMga                Boolean           @default(false)
   notes                String?
+  // Wave D-final: underwriting guidelines + binding authority.
+  uwGuidelinesUrl      String?
+  uwGuidelinesNotes    String?
+  bindingAuthorityNotes String?
+  // Max single-risk premium/limit we can bind without carrier referral.
+  bindingAuthorityLimit Decimal?         @db.Decimal(14, 2)
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
   contacts   CarrierContact[]
   schedules  CommissionSchedule[]
+  appetites  CarrierAppetiteRow[]
   policies   Policy[]
   quotes     Quote[]
   statements CommissionStatement[]
@@ -847,6 +935,9 @@ model Policy {
   eois                 EvidenceOfProperty[]
   endorsementRequests  EndorsementRequest[]
   reinstatements       Reinstatement[]
+  // Wave D-final.
+  surplusLinesFiling   SurplusLinesFiling?
+  signatureRequests    SignatureRequest[]
 
   @@index([status])
   @@index([expirationDate])
@@ -1503,4 +1594,147 @@ model PolicyAnalysis {
   @@index([source, status])
   @@index([clientId])
   @@index([createdAt])
+}
+
+// ── Households (Wave D-final) ─────────────────────────────────────────
+// A household groups related Clients (a family unit, or a primary insured
+// + dependents). It powers a combined 360 view, de-duplicates the
+// touchpoint engine (one greeting per household), and lets account-
+// rounding cross-sell across every member's book.
+model Household {
+  id            String     @id @default(cuid())
+  name          String
+  notes         String?
+  // Optional designated primary client (the household "head").
+  primaryClientId String?
+  primaryClient   Client?  @relation("HouseholdPrimary", fields: [primaryClientId], references: [id], onDelete: SetNull)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  members Client[]
+
+  @@index([name])
+}
+
+// ── Surplus-lines compliance (Wave D-final) ───────────────────────────
+// One filing record per surplus-lines policy. Surplus-lines (E&S) business
+// is placed with non-admitted carriers and must be filed with the state's
+// stamping office: surplus-lines tax + stamping fee are owed, and a
+// diligent-search affidavit is usually required.
+model SurplusLinesFiling {
+  id                  String             @id @default(cuid())
+  policyId            String             @unique
+  policy              Policy             @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  state               String
+  status              SurplusLinesStatus @default(PENDING)
+  filingNumber        String?
+  // Money owed to the state (Decimal — exact).
+  surplusLinesTax     Decimal?           @db.Decimal(12, 2)
+  stampingFee         Decimal?           @db.Decimal(12, 2)
+  taxRatePct          Decimal?           @db.Decimal(6, 3)
+  // Diligent-search / affidavit compliance.
+  diligentSearchDone  Boolean            @default(false)
+  affidavitOnFile     Boolean            @default(false)
+  filedAt             DateTime?
+  dueDate             DateTime?
+  notes               String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([status])
+  @@index([state])
+}
+
+// ── Carrier appetite / eligibility-by-LOB (Wave D-final) ──────────────
+// Per-carrier, per-LOB market-appetite rows. Producers use the market
+// finder ("who writes CONDO in our area?") to pick markets: it joins this
+// table with appointment status + commission schedule.
+model CarrierAppetiteRow {
+  id             String          @id @default(cuid())
+  carrierId      String
+  carrier        Carrier         @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+  lineOfBusiness LineOfBusiness
+  appetite       CarrierAppetite @default(STANDARD)
+  // Optional geographic / class qualifiers.
+  states         String? // comma-separated state codes; null = all appointed states
+  classNotes     String? // "no coastal", "TIV < $5M", "ineligible: trampolines"
+  minPremium     Decimal?        @db.Decimal(12, 2)
+  maxPremium     Decimal?        @db.Decimal(12, 2)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([carrierId, lineOfBusiness])
+  @@index([lineOfBusiness])
+}
+
+// ── E-signature (Wave D-final, deferred-API) ──────────────────────────
+// A SignatureRequest is the agency-side envelope for getting a document
+// signed (proposal / application / COI). It is provider-agnostic and
+// DORMANT by default: with no provider configured (provider=MANUAL) the
+// app produces a printable sign-here packet and lets staff manually mark
+// it signed. The DOCUSIGN / DROPBOX_SIGN seams exist for a future wave —
+// env-gated, like the AI / Xero adapters.
+model SignatureRequest {
+  id            String            @id @default(cuid())
+  provider      SignatureProvider @default(MANUAL)
+  status        SignatureStatus   @default(DRAFT)
+  docKind       SignatureDocKind  @default(OTHER)
+  title         String
+  // Signer.
+  signerName    String
+  signerEmail   String
+  // Optional linkage.
+  clientId      String?
+  client        Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  policyId      String?
+  policy        Policy?           @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  // What we're signing (a stored doc, or a generated packet path).
+  documentPath  String?
+  message       String?
+  // Provider envelope handle (null while MANUAL/dormant).
+  envelopeId    String?
+  // Lifecycle stamps.
+  sentAt        DateTime?
+  viewedAt      DateTime?
+  signedAt      DateTime?
+  declinedAt    DateTime?
+  voidedAt      DateTime?
+  expiresAt     DateTime?
+  declineReason String?
+  createdById   String?
+  createdBy     User?             @relation("SignatureRequestCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([status])
+  @@index([clientId])
+  @@index([policyId])
+}
+
+// ── Group / employee-benefits (Wave D-final, LIGHT foundation) ────────
+// A summary-level group plan tracked for an EMPLOYER client. This is a
+// stub for a future dedicated benefits wave — NO census / enrollment /
+// eligibility detail is modeled here; only headcount counts + the rate
+// basis, so benefits business can be tracked at a glance.
+model GroupPlan {
+  id             String        @id @default(cuid())
+  clientId       String
+  client         Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  planType       GroupPlanType @default(GROUP_HEALTH)
+  planName       String
+  carrierName    String?
+  groupNumber    String?
+  effectiveDate  DateTime
+  renewalDate    DateTime
+  eligibleCount  Int           @default(0)
+  enrolledCount  Int           @default(0)
+  rateBasis      RateBasis     @default(PEPM)
+  monthlyPremium Decimal?      @db.Decimal(12, 2)
+  notes          String?
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([clientId])
+  @@index([planType])
 }

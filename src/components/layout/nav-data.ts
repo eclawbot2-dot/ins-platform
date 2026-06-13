@@ -22,6 +22,10 @@ import {
   Settings,
   HeartHandshake,
   Sparkles,
+  Home,
+  Compass,
+  PenTool,
+  Stethoscope,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -39,6 +43,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "CRM",
     items: [
       { href: "/clients", label: "Clients", icon: Users },
+      { href: "/households", label: "Households", icon: Home },
       { href: "/leads", label: "Leads", icon: UserPlus },
       { href: "/opportunities", label: "Pipeline", icon: GitBranch },
     ],
@@ -54,7 +59,10 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/claims", label: "Claims", icon: ShieldAlert },
       { href: "/certificates", label: "Certificates", icon: FileCheck2 },
       { href: "/eoi", label: "Evidence of Property", icon: FileBadge },
+      { href: "/signatures", label: "E-signatures", icon: PenTool },
       { href: "/carriers", label: "Carriers", icon: Building2 },
+      { href: "/markets", label: "Market finder", icon: Compass },
+      { href: "/benefits", label: "Benefits", icon: Stethoscope },
       { href: "/documents", label: "Documents", icon: FolderOpen },
     ],
   },

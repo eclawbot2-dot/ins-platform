@@ -354,3 +354,113 @@ export function humanize(v: string): string {
     .replace(/_/g, " ")
     .replace(/^\w/, (c) => c.toUpperCase());
 }
+
+// ── Wave D-final: household / surplus-lines / appetite / e-sign / benefits
+
+import type {
+  HouseholdRole,
+  SurplusLinesStatus,
+  CarrierAppetite,
+  SignatureProvider,
+  SignatureStatus,
+  SignatureDocKind,
+  GroupPlanType,
+  RateBasis,
+} from "@prisma/client";
+
+export const HOUSEHOLD_ROLE_LABELS: Record<HouseholdRole, string> = {
+  PRIMARY: "Primary insured",
+  SPOUSE: "Spouse",
+  PARTNER: "Partner",
+  CHILD: "Child",
+  PARENT: "Parent",
+  DEPENDENT: "Dependent",
+  OTHER: "Other member",
+};
+
+export const SURPLUS_LINES_STATUS_LABELS: Record<SurplusLinesStatus, string> = {
+  PENDING: "Filing pending",
+  FILED: "Filed",
+  EXEMPT: "Exempt",
+  VOID: "Void",
+};
+
+export function surplusLinesStatusTone(s: SurplusLinesStatus): BadgeTone {
+  switch (s) {
+    case "PENDING": return "amber";
+    case "FILED": return "green";
+    case "EXEMPT": return "slate";
+    case "VOID": return "red";
+  }
+}
+
+export const CARRIER_APPETITE_LABELS: Record<CarrierAppetite, string> = {
+  PREFERRED: "Preferred",
+  STANDARD: "Standard",
+  RESTRICTED: "Restricted / referral",
+  DECLINE: "Will not write",
+};
+
+export function carrierAppetiteTone(a: CarrierAppetite): BadgeTone {
+  switch (a) {
+    case "PREFERRED": return "green";
+    case "STANDARD": return "blue";
+    case "RESTRICTED": return "amber";
+    case "DECLINE": return "red";
+  }
+}
+
+export const SIGNATURE_PROVIDER_LABELS: Record<SignatureProvider, string> = {
+  MANUAL: "Manual (print & sign)",
+  DOCUSIGN: "DocuSign",
+  DROPBOX_SIGN: "Dropbox Sign",
+};
+
+export const SIGNATURE_STATUS_LABELS: Record<SignatureStatus, string> = {
+  DRAFT: "Draft",
+  SENT: "Sent for signature",
+  VIEWED: "Viewed",
+  SIGNED: "Signed",
+  DECLINED: "Declined",
+  VOIDED: "Voided",
+  EXPIRED: "Expired",
+};
+
+export function signatureStatusTone(s: SignatureStatus): BadgeTone {
+  switch (s) {
+    case "DRAFT": return "slate";
+    case "SENT": return "violet";
+    case "VIEWED": return "blue";
+    case "SIGNED": return "green";
+    case "DECLINED":
+    case "VOIDED": return "red";
+    case "EXPIRED": return "amber";
+  }
+}
+
+export const SIGNATURE_DOC_KIND_LABELS: Record<SignatureDocKind, string> = {
+  PROPOSAL: "Proposal",
+  APPLICATION: "Application",
+  COI: "Certificate (COI)",
+  EOI: "Evidence of property",
+  POLICY_DOC: "Policy document",
+  OTHER: "Other document",
+};
+
+export const GROUP_PLAN_TYPE_LABELS: Record<GroupPlanType, string> = {
+  GROUP_HEALTH: "Group Health",
+  GROUP_DENTAL: "Group Dental",
+  GROUP_VISION: "Group Vision",
+  GROUP_LIFE: "Group Life",
+  GROUP_DISABILITY: "Group Disability",
+  GROUP_ACCIDENT: "Group Accident",
+  OTHER: "Other group plan",
+};
+
+export const RATE_BASIS_LABELS: Record<RateBasis, string> = {
+  PEPM: "Per employee / month",
+  PMPM: "Per member / month",
+  COMPOSITE: "Composite",
+  AGE_BANDED: "Age-banded",
+  OTHER: "Other",
+};

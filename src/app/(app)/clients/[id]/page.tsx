@@ -9,6 +9,7 @@ import { ConfirmButton } from "@/components/ui/confirm-button";
 import {
   CLIENT_STATUS_LABELS,
   CLAIM_STATUS_LABELS,
+  HOUSEHOLD_ROLE_LABELS,
   LOB_LABELS,
   POLICY_STATUS_LABELS,
   TOUCHPOINT_CATEGORY_LABELS,
@@ -39,6 +40,7 @@ import {
   resendPortalInvite,
   revokePortalInvite,
 } from "../actions";
+import { linkClientFromClient360, unlinkClientFromClient360 } from "../../households/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -62,11 +64,12 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       priorPolicies: { orderBy: { expirationDate: "asc" } },
       scheduledTouchpoints: { include: { template: { select: { name: true, category: true } } }, orderBy: { createdAt: "desc" }, take: 25 },
       commPrefs: true,
+      household: { select: { id: true, name: true, members: { select: { id: true } } } },
     },
   });
   if (!client) notFound();
 
-  const [users, crossSell, healthResult] = await Promise.all([
+  const [users, crossSell, healthResult, households] = await Promise.all([
     prisma.user.findMany({
       where: { active: true, role: { not: "CLIENT" } },
       select: { id: true, name: true },
@@ -74,6 +77,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     }),
     crossSellForClient(client.id),
     clientHealthFor(client.id),
+    prisma.household.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" }, take: 500 }),
   ]);
   const health = healthResult?.health ?? null;
 
@@ -132,6 +136,50 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               <DetailItem label="Client since">{fmtDate(client.createdAt)}</DetailItem>
             </dl>
             {client.notes ? <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{client.notes}</p> : null}
+          </div>
+
+          <div className="card-pad">
+            <h2 className="section-title mb-3">Household</h2>
+            {client.household ? (
+              <div className="space-y-3 text-sm">
+                <p className="text-slate-600">
+                  Part of{" "}
+                  <Link href={`/households/${client.household.id}`} className="font-medium text-navy-700 hover:underline">
+                    {client.household.name}
+                  </Link>{" "}
+                  ({client.household.members.length} member{client.household.members.length === 1 ? "" : "s"}) ·{" "}
+                  {HOUSEHOLD_ROLE_LABELS[client.householdRole]}
+                </p>
+                <form action={unlinkClientFromClient360.bind(null, client.id)}>
+                  <ConfirmButton message={`Remove ${client.name} from ${client.household.name}?`}>Remove from household</ConfirmButton>
+                </form>
+              </div>
+            ) : (
+              <form action={linkClientFromClient360.bind(null, client.id)} className="space-y-3">
+                <p className="text-xs text-slate-500">
+                  Link related clients so cross-sell, the combined 360, and outreach treat them as one family.
+                </p>
+                <Field label="Existing household">
+                  <Select
+                    name="householdId"
+                    options={[{ value: "", label: "— Create a new household —" }, ...households.map((h) => ({ value: h.id, label: h.name }))]}
+                  />
+                </Field>
+                <FormGrid>
+                  <Field label="New household name (if creating)">
+                    <input name="newHouseholdName" className="input" placeholder={`${client.name} household`} />
+                  </Field>
+                  <Field label="Role (if joining existing)">
+                    <Select
+                      name="householdRole"
+                      defaultValue="OTHER"
+                      options={(Object.keys(HOUSEHOLD_ROLE_LABELS) as (keyof typeof HOUSEHOLD_ROLE_LABELS)[]).map((r) => ({ value: r, label: HOUSEHOLD_ROLE_LABELS[r] }))}
+                    />
+                  </Field>
+                </FormGrid>
+                <button type="submit" className="btn btn-sm">Link to household</button>
+              </form>
+            )}
           </div>
 
           {health ? (

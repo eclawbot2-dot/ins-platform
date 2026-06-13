@@ -13,10 +13,14 @@ import {
   ENDORSEMENT_REQUEST_TYPE_LABELS,
   LOB_LABELS,
   POLICY_STATUS_LABELS,
+  SURPLUS_LINES_STATUS_LABELS,
+  SIGNATURE_STATUS_LABELS,
   claimStatusTone,
   endorsementRequestStatusTone,
   lobSegment,
   policyStatusTone,
+  surplusLinesStatusTone,
+  signatureStatusTone,
 } from "@/lib/labels";
 import { fmtMoney, fmtMoneyCents, fmtPct, toNum } from "@/lib/money";
 import { fmtDate, fmtDateInput } from "@/lib/domain/dates";
@@ -38,6 +42,7 @@ import {
   setEndorsementRequestStatus,
   setSplits,
 } from "../actions";
+import { upsertSurplusFiling } from "../surplus-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +67,8 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
         include: { requestedBy: { select: { name: true } }, processedBy: { select: { name: true } } },
       },
       reinstatements: { orderBy: { reinstatedAt: "desc" }, include: { reinstatedBy: { select: { name: true } } } },
+      surplusLinesFiling: true,
+      signatureRequests: { orderBy: { createdAt: "desc" }, take: 10 },
       documents: true,
     },
   });
@@ -517,6 +524,85 @@ export default async function PolicyDetailPage({ params }: { params: Promise<{ i
             </ul>
             <Link href={`/certificates/new?policyId=${policy.id}`} className="mt-3 inline-block text-xs text-navy-700 hover:underline">
               Issue COI →
+            </Link>
+          </div>
+
+          <div className="card-pad">
+            <h2 className="section-title mb-3">Surplus-lines filing</h2>
+            {policy.surplusLinesFiling ? (
+              <p className="mb-3 text-xs">
+                <Badge tone={surplusLinesStatusTone(policy.surplusLinesFiling.status)}>
+                  {SURPLUS_LINES_STATUS_LABELS[policy.surplusLinesFiling.status]}
+                </Badge>{" "}
+                <span className="ml-1 text-slate-500">{policy.surplusLinesFiling.state}{policy.surplusLinesFiling.filingNumber ? ` · #${policy.surplusLinesFiling.filingNumber}` : ""}</span>
+              </p>
+            ) : (
+              <p className="mb-3 text-xs text-slate-500">
+                Non-admitted / E&S placement? Record the state surplus-lines filing here.
+              </p>
+            )}
+            <form action={upsertSurplusFiling.bind(null, policy.id)} className="space-y-3">
+              <FormGrid cols={2}>
+                <Field label="State" required>
+                  <input name="state" defaultValue={policy.surplusLinesFiling?.state ?? ""} required className="input" placeholder="MA" />
+                </Field>
+                <Field label="Status">
+                  <Select
+                    name="status"
+                    defaultValue={policy.surplusLinesFiling?.status ?? "PENDING"}
+                    options={Object.entries(SURPLUS_LINES_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+                  />
+                </Field>
+                <Field label="Filing #">
+                  <input name="filingNumber" defaultValue={policy.surplusLinesFiling?.filingNumber ?? ""} className="input" />
+                </Field>
+                <Field label="Tax rate %">
+                  <input name="taxRatePct" type="number" step="0.001" defaultValue={policy.surplusLinesFiling?.taxRatePct ? toNum(policy.surplusLinesFiling.taxRatePct) : ""} className="input" />
+                </Field>
+                <Field label="SL tax ($)">
+                  <input name="surplusLinesTax" type="number" step="0.01" defaultValue={policy.surplusLinesFiling?.surplusLinesTax ? toNum(policy.surplusLinesFiling.surplusLinesTax) : ""} className="input" />
+                </Field>
+                <Field label="Stamping fee ($)">
+                  <input name="stampingFee" type="number" step="0.01" defaultValue={policy.surplusLinesFiling?.stampingFee ? toNum(policy.surplusLinesFiling.stampingFee) : ""} className="input" />
+                </Field>
+                <Field label="Due date">
+                  <input name="dueDate" type="date" defaultValue={fmtDateInput(policy.surplusLinesFiling?.dueDate)} className="input" />
+                </Field>
+                <Field label="Filed date">
+                  <input name="filedAt" type="date" defaultValue={fmtDateInput(policy.surplusLinesFiling?.filedAt)} className="input" />
+                </Field>
+              </FormGrid>
+              <div className="flex flex-wrap gap-3 text-xs text-slate-600">
+                <label className="flex items-center gap-1.5">
+                  <input type="checkbox" name="diligentSearchDone" defaultChecked={policy.surplusLinesFiling?.diligentSearchDone ?? false} /> Diligent search done
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input type="checkbox" name="affidavitOnFile" defaultChecked={policy.surplusLinesFiling?.affidavitOnFile ?? false} /> Affidavit on file
+                </label>
+              </div>
+              <Field label="Notes">
+                <input name="notes" defaultValue={policy.surplusLinesFiling?.notes ?? ""} className="input" />
+              </Field>
+              <div className="flex items-center gap-2">
+                <button type="submit" className="btn btn-sm">Save filing</button>
+                <Link href="/compliance/surplus-lines" className="text-xs text-navy-700 hover:underline">Worklist →</Link>
+              </div>
+            </form>
+          </div>
+
+          <div className="card-pad">
+            <h2 className="section-title mb-3">E-signature requests</h2>
+            <ul className="mb-3 space-y-2">
+              {policy.signatureRequests.map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-2 text-sm">
+                  <Link href={`/signatures/${s.id}`} className="truncate font-medium text-navy-700 hover:underline">{s.title}</Link>
+                  <Badge tone={signatureStatusTone(s.status)}>{SIGNATURE_STATUS_LABELS[s.status]}</Badge>
+                </li>
+              ))}
+              {policy.signatureRequests.length === 0 ? <li className="text-sm text-slate-400">No signature requests.</li> : null}
+            </ul>
+            <Link href={`/signatures/new?policyId=${policy.id}&clientId=${policy.client.id}`} className="text-xs text-navy-700 hover:underline">
+              Send for signature →
             </Link>
           </div>
         </div>

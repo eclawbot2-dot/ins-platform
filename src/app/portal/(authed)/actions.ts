@@ -157,6 +157,64 @@ export async function portalRequestCertificate(formData: FormData) {
   redirect(`/portal/certificates?toast=${encodeURIComponent("Certificate request sent — we'll email it to the holder shortly")}`);
 }
 
+/**
+ * Evidence-of-property (EOI) request from the portal — for a mortgagee /
+ * lender on a property policy. Scoped to the client's OWN policy; creates
+ * a staff task with the holder/loan details. Distinct from a COI (which is
+ * the liability analogue handled by portalRequestCertificate).
+ */
+export async function portalRequestEoi(formData: FormData) {
+  const session = await requireClientUser();
+  const clientId = session.clientId;
+
+  const policyId = fStr(formData, "policyId");
+  const holderName = fStr(formData, "holderName");
+  if (!holderName) {
+    redirect(`/portal/certificates?toastError=${encodeURIComponent("Enter the mortgagee / lender name")}`);
+  }
+
+  // Validate ownership of the referenced policy.
+  const policy = await prisma.policy.findFirst({
+    where: { id: policyId, ...portalPolicyWhere(clientId) },
+    select: { id: true, policyNumber: true, csrId: true, producerId: true, client: { select: { name: true } } },
+  });
+  if (!policy) {
+    redirect(`/portal/certificates?toastError=${encodeURIComponent("Select one of your property policies")}`);
+  }
+
+  const detail = [
+    `Evidence of property requested via client portal by ${session.user?.email ?? "client user"}.`,
+    `Policy: ${policy.policyNumber}`,
+    `Mortgagee / lender: ${holderName}`,
+    fStrOpt(formData, "holderAddress") ? `Address: ${fStr(formData, "holderAddress")}` : null,
+    fStrOpt(formData, "loanNumber") ? `Loan #: ${fStr(formData, "loanNumber")}` : null,
+    fStrOpt(formData, "holderEmail") ? `Holder email: ${fStr(formData, "holderEmail")}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const task = await prisma.task.create({
+    data: {
+      title: `Portal EOI request: ${holderName} (${policy.client.name})`,
+      detail,
+      dueDate: addDays(new Date(), 1),
+      priority: "HIGH",
+      clientId,
+      policyId: policy.id,
+      assignedToId: policy.csrId ?? policy.producerId,
+    },
+  });
+  await audit({
+    userId: session.userId,
+    action: "PORTAL_EOI_REQUEST",
+    entityType: "Task",
+    entityId: task.id,
+    detail: holderName,
+  });
+
+  redirect(`/portal/certificates?toast=${encodeURIComponent("Evidence of property requested — we'll send it to your lender shortly")}`);
+}
+
 /** Profile-change request — message → staff task (no direct data edits). */
 export async function portalRequestProfileChange(formData: FormData) {
   const session = await requireClientUser();

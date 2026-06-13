@@ -81,6 +81,11 @@ async function main() {
     prisma.watercraft.deleteMany(),
     prisma.insuredLocation.deleteMany(),
     prisma.priorPolicy.deleteMany(),
+    // Wave D-final.
+    prisma.surplusLinesFiling.deleteMany(),
+    prisma.signatureRequest.deleteMany(),
+    prisma.groupPlan.deleteMany(),
+    prisma.carrierAppetiteRow.deleteMany(),
     prisma.policy.deleteMany(),
     prisma.lead.deleteMany(),
     prisma.campaign.deleteMany(),
@@ -89,6 +94,7 @@ async function main() {
     prisma.clientCommunicationPreferences.deleteMany(),
     prisma.contact.deleteMany(),
     prisma.client.deleteMany(),
+    prisma.household.deleteMany(),
     prisma.commissionSchedule.deleteMany(),
     prisma.carrierContact.deleteMany(),
     prisma.carrier.deleteMany(),
@@ -1513,6 +1519,112 @@ async function main() {
       lineOfBusiness: "HOME",
     },
   });
+
+  // ── Wave D-final demo data ─────────────────────────────────────────
+
+  // Household linking two related individual clients (Walter & Janet
+  // Simmons as primary + Robert & Lisa Patel) so the combined 360 and
+  // cross-sell-across-the-household demo has data.
+  const household = await prisma.household.create({
+    data: { name: "Simmons–Patel household", primaryClientId: clients[0]!.id },
+  });
+  await prisma.client.update({ where: { id: clients[0]!.id }, data: { householdId: household.id, householdRole: "PRIMARY" } });
+  await prisma.client.update({ where: { id: clients[8]!.id }, data: { householdId: household.id, householdRole: "SPOUSE" } });
+
+  // Carrier appetite rows so the market finder has data. Progressive
+  // (preferred auto), Travelers (preferred home/condo), and a couple more.
+  const appetiteSpecs: Array<[string, LineOfBusiness, "PREFERRED" | "STANDARD" | "RESTRICTED" | "DECLINE", string | null]> = [
+    ["Progressive", "AUTO", "PREFERRED", "SC, NC, GA"],
+    ["Progressive", "MOTORCYCLE", "STANDARD", null],
+    ["Travelers", "HOME", "PREFERRED", "SC"],
+    ["Travelers", "CONDO", "PREFERRED", "SC"],
+    ["Travelers", "UMBRELLA", "STANDARD", null],
+    ["Nationwide", "HOME", "STANDARD", null],
+    ["Nationwide", "CONDO", "RESTRICTED", "No coastal within 1 mile"],
+    ["The Hartford", "GENERAL_LIABILITY", "PREFERRED", null],
+    ["The Hartford", "BOP", "PREFERRED", null],
+    ["Chubb", "HOME", "PREFERRED", "High-value only — TIV > $1M"],
+  ];
+  for (const [carrierName, lob, appetite, notes] of appetiteSpecs) {
+    const carrier = carriers[carrierName];
+    if (!carrier) continue;
+    await prisma.carrierAppetiteRow.upsert({
+      where: { carrierId_lineOfBusiness: { carrierId: carrier.id, lineOfBusiness: lob } },
+      update: { appetite, classNotes: notes },
+      create: { carrierId: carrier.id, lineOfBusiness: lob, appetite, states: lob === "AUTO" || lob === "HOME" || lob === "CONDO" ? (carrierName === "Progressive" ? "SC,NC,GA" : "SC") : null, classNotes: notes },
+    });
+  }
+  // UW guidelines + binding authority notes on one carrier.
+  const hartford = carriers["The Hartford"];
+  if (hartford) {
+    await prisma.carrier.update({
+      where: { id: hartford.id },
+      data: {
+        uwGuidelinesUrl: "https://agents.thehartford.example.com/uw-guidelines",
+        uwGuidelinesNotes: "Small-business sweet spot; refer any single location with TIV > $10M.",
+        bindingAuthorityNotes: "Bind GL/BOP up to $25k premium; refer anything above or with prior losses.",
+        bindingAuthorityLimit: 25000,
+      },
+    });
+  }
+
+  // A surplus-lines policy + its filing. Pick a commercial policy and mark
+  // it as a non-admitted placement that still needs filing (PENDING).
+  const slPolicy = policyIds.find((p) => p.lob === "GENERAL_LIABILITY") ?? policyIds[0];
+  if (slPolicy) {
+    await prisma.surplusLinesFiling.upsert({
+      where: { policyId: slPolicy.id },
+      update: {},
+      create: {
+        policyId: slPolicy.id,
+        state: "SC",
+        status: "PENDING",
+        taxRatePct: 6,
+        surplusLinesTax: Math.round(slPolicy.premium * 0.06 * 100) / 100,
+        stampingFee: 25,
+        diligentSearchDone: true,
+        affidavitOnFile: false,
+        dueDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+        notes: "Non-admitted E&S placement — affidavit pending the insured's signature.",
+      },
+    });
+  }
+
+  // An e-signature request (manual flow — no provider configured by default).
+  await prisma.signatureRequest.create({
+    data: {
+      provider: "MANUAL",
+      status: "SENT",
+      docKind: "PROPOSAL",
+      title: `Proposal — ${clients[1]!.name}`,
+      signerName: clients[1]!.name,
+      signerEmail: "office@harborviewbuilders.example.com",
+      clientId: clients[1]!.id,
+      policyId: policyIds.find((p) => p.clientIdx === 1)?.id ?? null,
+      message: "Please review and sign the attached commercial proposal.",
+      sentAt: new Date(),
+      createdById: james.id,
+    },
+  });
+
+  // A group benefits plan for an employer client (light stub module).
+  await prisma.groupPlan.create({
+    data: {
+      clientId: clients[1]!.id,
+      planType: "GROUP_HEALTH",
+      planName: "2026 Group Medical PPO",
+      carrierName: "Blue Cross Blue Shield SC",
+      groupNumber: "GRP-HARB-2026",
+      effectiveDate: new Date(new Date().getFullYear(), 0, 1),
+      renewalDate: new Date(new Date().getFullYear() + 1, 0, 1),
+      eligibleCount: 42,
+      enrolledCount: 31,
+      rateBasis: "PEPM",
+      monthlyPremium: 24800,
+      notes: "Renews 1/1. Considering adding a dental line at renewal.",
+    },
+  });
+  await prisma.client.update({ where: { id: clients[1]!.id }, data: { hasBenefits: true } });
 
   // ── Summary ────────────────────────────────────────────────────────
   const counts = await prisma.$transaction([

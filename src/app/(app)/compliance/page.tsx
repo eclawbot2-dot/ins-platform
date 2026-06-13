@@ -92,6 +92,11 @@ export default async function CompliancePage({
       <PageHeader
         title="Compliance"
         description={`Producer licensing, CE credits, agency E&O, and carrier appointments — alerts within ${ALERT_WINDOW_DAYS} days.`}
+        actions={
+          <Link href="/compliance/surplus-lines" className="btn">
+            Surplus-lines worklist
+          </Link>
+        }
       />
 
       {alerts.length > 0 ? (

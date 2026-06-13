@@ -39,7 +39,17 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
         <Link href={`/quotes/${qr.id}`} className="btn">
           ← Back to quote request
         </Link>
-        <PrintButton label="Print proposal" />
+        <div className="flex items-center gap-2">
+          {qr.client ? (
+            <Link
+              href={`/signatures/new?clientId=${qr.client.id}&docKind=PROPOSAL&title=${encodeURIComponent(`Proposal — ${subjectName}`)}`}
+              className="btn"
+            >
+              Send for signature
+            </Link>
+          ) : null}
+          <PrintButton label="Print proposal" />
+        </div>
       </div>
 
       <div className="print-page card bg-white p-10">

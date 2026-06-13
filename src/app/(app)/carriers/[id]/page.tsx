@@ -6,10 +6,12 @@ import { PageHeader, DetailItem } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Field, FormGrid, Select } from "@/components/ui/form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
-import { ALL_LOBS, APPOINTMENT_LABELS, LOB_LABELS, POLICY_STATUS_LABELS, policyStatusTone } from "@/lib/labels";
+import { ALL_LOBS, APPOINTMENT_LABELS, CARRIER_APPETITE_LABELS, LOB_LABELS, POLICY_STATUS_LABELS, carrierAppetiteTone, policyStatusTone } from "@/lib/labels";
 import { fmtMoney, fmtPct, toNum } from "@/lib/money";
 import { fmtDate, fmtDateInput } from "@/lib/domain/dates";
-import { addCarrierContact, deleteCarrierContact, deleteSchedule, updateCarrier, upsertSchedule } from "../actions";
+import { addCarrierContact, deleteAppetite, deleteCarrierContact, deleteSchedule, updateCarrier, upsertAppetite, upsertSchedule } from "../actions";
+
+const APPETITE_OPTIONS = Object.entries(CARRIER_APPETITE_LABELS).map(([value, label]) => ({ value, label }));
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,7 @@ export default async function CarrierDetailPage({ params }: { params: Promise<{ 
     include: {
       contacts: { orderBy: { name: "asc" } },
       schedules: { orderBy: { lineOfBusiness: "asc" } },
+      appetites: { orderBy: { lineOfBusiness: "asc" } },
       policies: {
         where: { status: { in: ["ACTIVE", "BOUND"] } },
         include: { client: { select: { name: true } } },
@@ -98,6 +101,25 @@ export default async function CarrierDetailPage({ params }: { params: Promise<{ 
               <Field label="Notes">
                 <textarea name="notes" defaultValue={carrier.notes ?? ""} rows={2} className="input" />
               </Field>
+              <div className="border-t border-slate-100 pt-3">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Underwriting & binding authority
+                </h3>
+                <FormGrid cols={2}>
+                  <Field label="UW guidelines URL">
+                    <input name="uwGuidelinesUrl" type="url" defaultValue={carrier.uwGuidelinesUrl ?? ""} className="input" placeholder="https://…" />
+                  </Field>
+                  <Field label="Binding authority limit ($)">
+                    <input name="bindingAuthorityLimit" type="number" step="0.01" defaultValue={carrier.bindingAuthorityLimit ? toNum(carrier.bindingAuthorityLimit) : ""} className="input" />
+                  </Field>
+                </FormGrid>
+                <Field label="UW guidelines notes">
+                  <textarea name="uwGuidelinesNotes" defaultValue={carrier.uwGuidelinesNotes ?? ""} rows={2} className="input" placeholder="Class restrictions, referral triggers…" />
+                </Field>
+                <Field label="Binding authority notes">
+                  <textarea name="bindingAuthorityNotes" defaultValue={carrier.bindingAuthorityNotes ?? ""} rows={2} className="input" placeholder="What we can bind vs. must refer…" />
+                </Field>
+              </div>
               <button type="submit" className="btn-primary">
                 Save carrier
               </button>
@@ -186,6 +208,65 @@ export default async function CarrierDetailPage({ params }: { params: Promise<{ 
                 Save row
               </button>
             </form>
+          </div>
+
+          <div className="card-pad">
+            <h2 className="section-title mb-3">Appetite / eligibility by line</h2>
+            <div className="mb-4 overflow-x-auto">
+              <table className="table-base">
+                <thead>
+                  <tr>
+                    <th>Line of business</th>
+                    <th>Appetite</th>
+                    <th>States</th>
+                    <th>Class notes</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {carrier.appetites.map((a) => (
+                    <tr key={a.id}>
+                      <td>{LOB_LABELS[a.lineOfBusiness]}</td>
+                      <td>
+                        <Badge tone={carrierAppetiteTone(a.appetite)}>{CARRIER_APPETITE_LABELS[a.appetite]}</Badge>
+                      </td>
+                      <td className="text-xs">{a.states ?? "All"}</td>
+                      <td className="max-w-[16rem] truncate text-xs text-slate-500" title={a.classNotes ?? ""}>{a.classNotes ?? "—"}</td>
+                      <td className="text-right">
+                        <form action={deleteAppetite.bind(null, carrier.id, a.id)}>
+                          <ConfirmButton message={`Remove the ${LOB_LABELS[a.lineOfBusiness]} appetite row?`}>Remove</ConfirmButton>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                  {carrier.appetites.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-4 text-center text-slate-400">No appetite rows — add lines this carrier writes so they surface in the market finder.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+            <form action={upsertAppetite.bind(null, carrier.id)} className="space-y-3">
+              <FormGrid cols={2}>
+                <Field label="LOB">
+                  <Select name="lineOfBusiness" options={ALL_LOBS.map((l) => ({ value: l, label: LOB_LABELS[l] }))} />
+                </Field>
+                <Field label="Appetite">
+                  <Select name="appetite" defaultValue="STANDARD" options={APPETITE_OPTIONS} />
+                </Field>
+                <Field label="States (CSV, blank = all)">
+                  <input name="states" className="input" placeholder="MA, NH, RI" />
+                </Field>
+                <Field label="Class notes">
+                  <input name="classNotes" className="input" placeholder="No coastal; TIV < $5M" />
+                </Field>
+              </FormGrid>
+              <button type="submit" className="btn btn-sm">Save appetite</button>
+            </form>
+            <p className="mt-3 text-xs text-slate-500">
+              <Link href="/markets" className="text-navy-700 hover:underline">Open the market finder →</Link>
+            </p>
           </div>
 
           <div className="card-pad">

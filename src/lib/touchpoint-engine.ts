@@ -32,6 +32,11 @@ import {
   type CommPrefsLike,
 } from "@/lib/domain/touchpoints";
 import {
+  isHouseholdDedupCategory,
+  dedupHouseholdRecipients,
+  householdRoleRank,
+} from "@/lib/domain/household";
+import {
   renderEmail,
   type MergeContext,
   type Personalizer,
@@ -136,6 +141,8 @@ export async function evaluateTouchpoints(asOf: Date = new Date(), dryRun = fals
       createdAt: true,
       dateOfBirth: true,
       email: true,
+      householdId: true,
+      householdRole: true,
       commPrefs: { select: { doNotContact: true } },
       policies: {
         where: { status: { in: ["ACTIVE", "BOUND"] } },
@@ -150,6 +157,17 @@ export async function evaluateTouchpoints(asOf: Date = new Date(), dryRun = fals
 
   const result: EvaluateResult = { scanned: scanned.length, due: 0, created: 0, skipped: 0 };
 
+  // Index for household dedup: clientId → { householdId, role }.
+  const householdOf = new Map<string, { householdId: string | null; role: string }>();
+  for (const c of clients) householdOf.set(c.id, { householdId: c.householdId, role: c.householdRole });
+
+  // Pass 1 — collect every due (template, client) decision.
+  type DueDecision = {
+    client: (typeof clients)[number];
+    template: (typeof scanned)[number];
+    decision: NonNullable<ReturnType<typeof dueTouchpoints>>;
+  };
+  const decisions: DueDecision[] = [];
   for (const client of clients) {
     // doNotContact short-circuits ALL scheduling for this client.
     if (client.commPrefs?.doNotContact) continue;
@@ -163,12 +181,43 @@ export async function evaluateTouchpoints(asOf: Date = new Date(), dryRun = fals
       openInvoices: client.invoices.map((i) => ({ id: i.id, dueDate: i.dueDate })),
     };
     for (const template of scanned) {
-      const decision = dueTouchpoints(
-        { ...template, audienceFilter: template.audienceFilter },
-        ctx,
-        asOf,
-      );
+      const decision = dueTouchpoints({ ...template, audienceFilter: template.audienceFilter }, ctx, asOf);
       if (!decision) continue;
+      decisions.push({ client, template, decision });
+    }
+  }
+
+  // Pass 2 — household de-dup for household-level categories (APPRECIATION,
+  // SATISFACTION): one recipient per household per template, so a holiday
+  // greeting / NPS doesn't double-send to spouses living together.
+  const suppressed = new Set<string>(); // `${templateKey}:${clientId}`
+  const byTemplate = new Map<string, DueDecision[]>();
+  for (const d of decisions) {
+    if (!isHouseholdDedupCategory(d.template.category)) continue;
+    const list = byTemplate.get(d.template.key) ?? [];
+    list.push(d);
+    byTemplate.set(d.template.key, list);
+  }
+  for (const [templateKey, list] of byTemplate) {
+    const keep = dedupHouseholdRecipients(
+      list.map((d) => {
+        const h = householdOf.get(d.client.id);
+        return {
+          clientId: d.client.id,
+          householdId: h?.householdId ?? null,
+          preferenceRank: householdRoleRank(h?.role ?? "OTHER"),
+        };
+      }),
+    );
+    for (const d of list) {
+      if (!keep.has(d.client.id)) suppressed.add(`${templateKey}:${d.client.id}`);
+    }
+  }
+
+  // Pass 3 — persist the surviving decisions.
+  for (const { client, template, decision } of decisions) {
+    if (suppressed.has(`${template.key}:${client.id}`)) continue;
+    {
       result.due += 1;
       if (dryRun) continue;
       try {

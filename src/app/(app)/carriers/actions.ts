@@ -5,11 +5,12 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { fStr, fStrOpt, fNum, fDate, fEnum, fBool } from "@/lib/form";
+import { fStr, fStrOpt, fNum, fNumOpt, fDate, fEnum, fBool } from "@/lib/form";
 import { ALL_LOBS } from "@/lib/labels";
-import type { AppointmentStatus } from "@prisma/client";
+import type { AppointmentStatus, CarrierAppetite } from "@prisma/client";
 
 const APPOINTMENTS: AppointmentStatus[] = ["APPOINTED", "PENDING", "TERMINATED", "NOT_APPOINTED"];
+const APPETITES: CarrierAppetite[] = ["PREFERRED", "STANDARD", "RESTRICTED", "DECLINE"];
 
 function carrierDataFrom(formData: FormData) {
   return {
@@ -24,6 +25,10 @@ function carrierDataFrom(formData: FormData) {
     appointmentExpiresAt: fDate(formData, "appointmentExpiresAt"),
     isMga: fBool(formData, "isMga"),
     notes: fStrOpt(formData, "notes"),
+    uwGuidelinesUrl: fStrOpt(formData, "uwGuidelinesUrl"),
+    uwGuidelinesNotes: fStrOpt(formData, "uwGuidelinesNotes"),
+    bindingAuthorityNotes: fStrOpt(formData, "bindingAuthorityNotes"),
+    bindingAuthorityLimit: fNumOpt(formData, "bindingAuthorityLimit"),
   };
 }
 
@@ -85,4 +90,41 @@ export async function deleteCarrierContact(carrierId: string, contactId: string)
   await prisma.carrierContact.delete({ where: { id: contactId } });
   revalidatePath(`/carriers/${carrierId}`);
   redirect(`/carriers/${carrierId}?toast=${encodeURIComponent("Contact removed")}`);
+}
+
+// ── Carrier appetite / eligibility-by-LOB (Wave D-final) ─────────────
+
+export async function upsertAppetite(carrierId: string, formData: FormData) {
+  const session = await requireSession();
+  const lineOfBusiness = fEnum(formData, "lineOfBusiness", ALL_LOBS, "AUTO");
+  await prisma.carrierAppetiteRow.upsert({
+    where: { carrierId_lineOfBusiness: { carrierId, lineOfBusiness } },
+    update: {
+      appetite: fEnum(formData, "appetite", APPETITES, "STANDARD"),
+      states: fStrOpt(formData, "states"),
+      classNotes: fStrOpt(formData, "classNotes"),
+      minPremium: fNumOpt(formData, "minPremium"),
+      maxPremium: fNumOpt(formData, "maxPremium"),
+    },
+    create: {
+      carrierId,
+      lineOfBusiness,
+      appetite: fEnum(formData, "appetite", APPETITES, "STANDARD"),
+      states: fStrOpt(formData, "states"),
+      classNotes: fStrOpt(formData, "classNotes"),
+      minPremium: fNumOpt(formData, "minPremium"),
+      maxPremium: fNumOpt(formData, "maxPremium"),
+    },
+  });
+  await audit({ userId: session.userId, action: "CARRIER_APPETITE_UPSERT", entityType: "Carrier", entityId: carrierId, detail: lineOfBusiness });
+  revalidatePath(`/carriers/${carrierId}`);
+  redirect(`/carriers/${carrierId}?toast=${encodeURIComponent("Appetite row saved")}`);
+}
+
+export async function deleteAppetite(carrierId: string, appetiteId: string) {
+  await requireSession();
+  // Scope by carrierId so a forged appetiteId can't touch another carrier's row.
+  await prisma.carrierAppetiteRow.deleteMany({ where: { id: appetiteId, carrierId } });
+  revalidatePath(`/carriers/${carrierId}`);
+  redirect(`/carriers/${carrierId}?toast=${encodeURIComponent("Appetite row removed")}`);
 }
