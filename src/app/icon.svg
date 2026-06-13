@@ -1,4 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Tabor Agency">
-  <rect width="64" height="64" rx="14" fill="#13294B"/>
-  <text x="32" y="45" font-family="ui-sans-serif,system-ui,Arial,sans-serif" font-size="38" font-weight="700" fill="#CFA341" text-anchor="middle">T</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Tabor Agency"><rect width="64" height="64" rx="14" fill="#F4F1EA"/><text x="32" y="42" font-family="Georgia,'Times New Roman',serif" font-size="34" font-weight="700" fill="#13294B" text-anchor="middle">T</text><rect x="20" y="46" width="24" height="3.6" rx="1.8" fill="#CFA341"/></svg>
