@@ -57,7 +57,9 @@ const pages = [
   ["/tasks", "task"],
   ["/clients", "Harborview"],
   ["/households", "household"],
-  ["/leads", "Thompson"],
+  // Search-scoped so the seed lead is found regardless of how many other
+  // leads exist (the list paginates; a bare /leads can bury a seed row).
+  ["/leads?q=Thompson", "Thompson"],
   ["/opportunities", "Edit details"],
   ["/policies", "Travelers"],
   ["/quotes", "Quot"],
