@@ -7,7 +7,7 @@ agency, plus a customer-facing portal at `/portal`.
 
 - **Live URL:** https://ins.jahdev.com (Cloudflare tunnel → localhost:3220);
   the client portal also answers at https://portal.taboragency.com (NS cutover pending)
-- **Staff login:** `ericbbowman2@gmail.com` / `Ins2026!` (seeded admin) at `/login`
+- **Staff login:** `b@taboragency.com` / `Tabor123!` (seeded admin) at `/login`
 - **Client portal login:** `client@taboragency.com` / `Client2026!` (seeded demo client) at `/portal/login`
 - **Brand:** all brand strings live in `src/lib/brand.ts` (navy `#13294B` / gold palette in `globals.css`)
 - **Stack:** Next.js 16 (App Router) · React 19 · TypeScript strict · Tailwind 4 ·

@@ -4,7 +4,7 @@
  *   npm run db:seed   (or npm run setup)
  *
  * Wipes and re-creates all rows (dev-only data). Logins:
- *   staff admin:   ericbbowman2@gmail.com / Ins2026!
+ *   staff admin:   b@taboragency.com / Tabor123!
  *   client portal: client@taboragency.com / Client2026!
  */
 
@@ -106,9 +106,10 @@ async function main() {
 
   // ── Users ──────────────────────────────────────────────────────────
   const pw = await bcrypt.hash("Ins2026!", 12);
+  const pwAdmin = await bcrypt.hash("Tabor123!", 12);
   const [eric, sarah, james, dana, molly] = await Promise.all([
     prisma.user.create({
-      data: { email: "ericbbowman2@gmail.com", name: "Eric Bowman", password: pw, role: "ADMIN", npn: "18223344", phone: "843-555-0100" },
+      data: { email: "b@taboragency.com", name: "Eric Bowman", password: pwAdmin, role: "ADMIN", npn: "18223344", phone: "843-555-0100" },
     }),
     prisma.user.create({
       data: { email: "sarah@ins.jahdev.com", name: "Sarah Mitchell", password: pw, role: "PRODUCER", npn: "17665522", phone: "843-555-0101", defaultSplitPct: 100 },
@@ -1617,7 +1618,7 @@ async function main() {
     `${counts[4]} leads, ${counts[5]} quotes, ${counts[6]} claims, ${counts[7]} statements, ` +
     `${counts[8]} licenses, ${counts[9]} campaigns, ${counts[10]} invoices, ${counts[11]} certificates.`,
   );
-  console.log("Admin login: ericbbowman2@gmail.com / Ins2026!");
+  console.log("Admin login: b@taboragency.com / Tabor123!");
   console.log("Portal login: client@taboragency.com / Client2026! (Harborview Builders LLC)");
 }
 

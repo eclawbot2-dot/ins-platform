@@ -7,8 +7,8 @@
  */
 
 const BASE = process.argv[2] ?? "http://localhost:3220";
-const EMAIL = "ericbbowman2@gmail.com";
-const PASSWORD = "Ins2026!";
+const EMAIL = "b@taboragency.com";
+const PASSWORD = "Tabor123!";
 
 const jar = new Map();
 function storeCookies(res) {
