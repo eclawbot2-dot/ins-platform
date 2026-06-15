@@ -131,10 +131,10 @@ async function main() {
     data: {
       id: "agency",
       name: "Tabor Agency",
-      addressLine1: "1310 Meeting Street, Suite 200",
-      city: "Charleston",
+      addressLine1: "665 Johnnie Dodds, Suite 234",
+      city: "Mount Pleasant",
       state: "SC",
-      zip: "29405",
+      zip: "29464",
       phone: "843-555-0100",
       email: "office@taboragency.com",
       website: "https://taboragency.com",

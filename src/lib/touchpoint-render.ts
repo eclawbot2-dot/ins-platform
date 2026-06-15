@@ -72,8 +72,18 @@ export function renderTemplate(body: string, ctx: MergeContext): string {
   return body.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, key: string) => table[key] ?? "");
 }
 
-/** Plain-text sender-identity + one-click unsubscribe footer (CAN-SPAM). */
-export function senderFooterText(ctx: MergeContext): string {
+/**
+ * Plain-text sender-identity + one-click unsubscribe footer (CAN-SPAM).
+ * `personal` emails (birthday / anniversary / holiday greetings — relationship
+ * messages, not marketing) drop the unsubscribe/"you're receiving this" block so
+ * they read like a genuine note from the agency. They keep a quiet contact line
+ * (address + phone) as a signature.
+ */
+export function senderFooterText(ctx: MergeContext, personal = false): string {
+  if (personal) {
+    const parts = [ctx.agency.address, ctx.agency.phone].filter(Boolean);
+    return parts.length ? `\n\n${parts.join("\n")}` : "";
+  }
   const addr = ctx.agency.address ? `\n${ctx.agency.address}` : "";
   return (
     `\n\n—\n${ctx.agency.name}` +
@@ -84,8 +94,14 @@ export function senderFooterText(ctx: MergeContext): string {
   );
 }
 
-/** HTML sender-identity + unsubscribe footer. */
-export function senderFooterHtml(ctx: MergeContext): string {
+/** HTML sender-identity + unsubscribe footer. `personal` drops the unsubscribe block. */
+export function senderFooterHtml(ctx: MergeContext, personal = false): string {
+  if (personal) {
+    const parts = [ctx.agency.address, ctx.agency.phone].filter(Boolean).map((p) => escapeHtml(p as string));
+    return parts.length
+      ? `<p style="color:#94a3b8;font-size:12px;line-height:1.5;margin-top:16px">${parts.join("<br/>")}</p>`
+      : "";
+  }
   return (
     `<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0" />` +
     `<p style="color:#64748b;font-size:12px;line-height:1.5">` +
@@ -105,7 +121,7 @@ function escapeHtml(s: string): string {
 }
 
 /** Wrap a rendered (plain-text) body in the brand HTML shell + footer. */
-export function wrapHtml(renderedBody: string, ctx: MergeContext): string {
+export function wrapHtml(renderedBody: string, ctx: MergeContext, personal = false): string {
   const paragraphs = renderedBody
     .trim()
     .split(/\n{2,}/)
@@ -117,7 +133,7 @@ export function wrapHtml(renderedBody: string, ctx: MergeContext): string {
     `<span style="font-size:18px;font-weight:600;color:#0f3d61">${escapeHtml(ctx.agency.name)}</span>` +
     `</div>` +
     paragraphs +
-    senderFooterHtml(ctx) +
+    senderFooterHtml(ctx, personal) +
     `</div>`
   );
 }
@@ -135,13 +151,14 @@ export async function renderEmail(
   subject: string,
   body: string,
   ctx: MergeContext,
-  personalize?: Personalizer,
+  opts?: { personalize?: Personalizer; personal?: boolean },
 ): Promise<RenderedEmail> {
+  const personal = opts?.personal ?? false;
   let renderedSubject = renderTemplate(subject, ctx);
   let renderedBody = renderTemplate(body, ctx);
-  if (personalize) {
+  if (opts?.personalize) {
     try {
-      const out = await personalize(ctx);
+      const out = await opts.personalize(ctx);
       if (out?.subject) renderedSubject = renderTemplate(out.subject, ctx);
       if (out?.body) renderedBody = renderTemplate(out.body, ctx);
     } catch {
@@ -150,7 +167,7 @@ export async function renderEmail(
   }
   return {
     subject: renderedSubject,
-    text: renderedBody + senderFooterText(ctx),
-    html: wrapHtml(renderedBody, ctx),
+    text: renderedBody + senderFooterText(ctx, personal),
+    html: wrapHtml(renderedBody, ctx, personal),
   };
 }

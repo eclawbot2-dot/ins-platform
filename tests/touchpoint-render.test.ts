@@ -10,7 +10,7 @@ import {
 
 const ctx = (over: Partial<MergeContext> = {}): MergeContext => ({
   client: { name: "Walter & Janet Simmons", preferredName: "Walt", firstName: "Walter", email: "w@example.com" },
-  agency: { name: "Tabor Agency", phone: "843-555-0100", email: "office@taboragency.com", address: "1310 Meeting St, Charleston SC 29405" },
+  agency: { name: "Tabor Agency", phone: "843-555-0100", email: "office@taboragency.com", address: "665 Johnnie Dodds, Suite 234, Mount Pleasant SC 29464" },
   producerName: "Sarah Mitchell",
   csrName: "Molly Tran",
   tenureYears: "3",
@@ -79,15 +79,28 @@ describe("renderEmail", () => {
     expect(out.html).toContain("<p");
   });
   it("falls back to seeded copy when a personalizer throws (never blocks a send)", async () => {
-    const out = await renderEmail("Subj {{firstName}}", "Body {{firstName}}", ctx(), async () => {
-      throw new Error("AI down");
+    const out = await renderEmail("Subj {{firstName}}", "Body {{firstName}}", ctx(), {
+      personalize: async () => {
+        throw new Error("AI down");
+      },
     });
     expect(out.subject).toBe("Subj Walt");
     expect(out.text).toContain("Body Walt");
   });
   it("applies a successful personalizer rewrite (still re-resolving merge fields)", async () => {
-    const out = await renderEmail("Subj", "Body", ctx(), async () => ({ subject: "New {{firstName}}", body: "Rewritten {{agencyName}}" }));
+    const out = await renderEmail("Subj", "Body", ctx(), {
+      personalize: async () => ({ subject: "New {{firstName}}", body: "Rewritten {{agencyName}}" }),
+    });
     expect(out.subject).toBe("New Walt");
     expect(out.text).toContain("Rewritten Tabor Agency");
+  });
+  it("personal mode (client-specific, non-marketing) drops the unsubscribe footer", async () => {
+    const out = await renderEmail("Happy Birthday, {{firstName}}!", "Hi {{firstName}},\n\nWishing you the best.", ctx(), { personal: true });
+    expect(out.text).not.toContain("unsubscribe");
+    expect(out.text).not.toContain("You're receiving this");
+    expect(out.html).not.toContain("unsubscribe");
+    // but keeps a quiet contact signature
+    expect(out.text).toContain("665 Johnnie Dodds");
+    expect(out.text).toContain("843-555-0100");
   });
 });

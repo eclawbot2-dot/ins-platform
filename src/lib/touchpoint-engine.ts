@@ -336,7 +336,12 @@ export async function sendDueTouchpoints(asOf: Date = new Date(), personalize?: 
     );
 
     try {
-      const email = await renderEmail(row.template.subject, row.template.body, ctx, ai);
+      // Lifecycle touchpoints (birthday, reminders, renewals, payments, claims,
+      // onboarding, etc.) are ALL client-specific relationship/transactional
+      // messages — NOT marketing — so they drop the unsubscribe footer and read
+      // like a genuine note. Only promotional marketing email (the /marketing
+      // module) carries the unsubscribe.
+      const email = await renderEmail(row.template.subject, row.template.body, ctx, { personalize: ai, personal: true });
       const send = await sendEmail({ to: client.email!, subject: email.subject, text: email.text, html: email.html });
       if (send.ok) {
         await prisma.scheduledTouchpoint.update({

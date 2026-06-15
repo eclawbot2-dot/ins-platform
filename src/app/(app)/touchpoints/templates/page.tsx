@@ -33,7 +33,7 @@ export default async function TouchpointTemplatesPage({
     <>
       <PageHeader
         title="Touchpoint journeys"
-        description="The library of warm, professional lifecycle templates. Merge fields like {{firstName}} resolve at send time; a sender-identity + unsubscribe footer is appended automatically."
+        description="Every automated email a client can receive. Merge fields like {{firstName}} resolve at send time. These are client-specific lifecycle messages (birthday, reminders, renewals, claims) — they send WITHOUT an unsubscribe footer so they read like a genuine note. Only promotional marketing email carries an unsubscribe."
         actions={<Link href="/touchpoints" className="btn">← Touchpoints</Link>}
       />
 
@@ -41,7 +41,7 @@ export default async function TouchpointTemplatesPage({
         <table className="table-base">
           <thead>
             <tr>
-              <th>Key</th><th>Name</th><th>Category</th><th>Trigger</th><th>Offset</th><th>Approval</th><th>Active</th><th></th>
+              <th>Key</th><th>Name</th><th>Category</th><th>Trigger</th><th>Offset</th><th>Footer</th><th>Approval</th><th>Active</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -54,6 +54,7 @@ export default async function TouchpointTemplatesPage({
                 <td><Badge tone={touchpointCategoryTone(t.category)}>{TOUCHPOINT_CATEGORY_LABELS[t.category]}</Badge></td>
                 <td className="text-xs">{TOUCHPOINT_TRIGGER_LABELS[t.triggerType]}</td>
                 <td className="tabular-nums">{t.offsetDays !== 0 ? `${t.offsetDays > 0 ? "+" : ""}${t.offsetDays}d` : t.tenureMonths ? `${t.tenureMonths}mo` : "—"}</td>
+                <td><Badge tone="green">Personal · no unsubscribe</Badge></td>
                 <td>{t.requiresApproval ? <Badge tone="amber">Required</Badge> : <Badge tone="green">Auto</Badge>}</td>
                 <td>{t.active ? <Badge tone="green">Active</Badge> : <Badge tone="slate">Off</Badge>}</td>
                 <td className="text-right">
@@ -66,7 +67,7 @@ export default async function TouchpointTemplatesPage({
               </tr>
             ))}
             {templates.length === 0 ? (
-              <tr><td colSpan={8} className="py-8 text-center text-sm text-slate-400">No journeys yet.</td></tr>
+              <tr><td colSpan={9} className="py-8 text-center text-sm text-slate-400">No journeys yet.</td></tr>
             ) : null}
           </tbody>
         </table>
