@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Menu, Shield, X } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import { NavLinks } from "./nav-links";
+import { NavCustomizeFooter } from "./nav-customize-footer";
 import { SignOutButton } from "./sign-out-button";
 
 /**
@@ -87,6 +88,9 @@ export function MobileNav({ userName, userRole }: { userName: string; userRole: 
             <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-3 py-4">
               <NavLinks size="lg" onNavigate={() => setOpen(false)} />
             </nav>
+            <div className="border-t border-white/10 px-3 pt-2">
+              <NavCustomizeFooter />
+            </div>
             <div className="border-t border-white/10 px-4 py-3">
               <div className="truncate text-sm font-medium text-white">{userName}</div>
               <div className="mb-2 text-[11px] uppercase tracking-wide text-slate-400">{userRole}</div>
