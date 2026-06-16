@@ -75,14 +75,14 @@ export function renderTemplate(body: string, ctx: MergeContext): string {
 /**
  * Plain-text sender-identity + one-click unsubscribe footer (CAN-SPAM).
  * `personal` emails (birthday / anniversary / holiday greetings — relationship
- * messages, not marketing) drop the unsubscribe/"you're receiving this" block so
- * they read like a genuine note from the agency. They keep a quiet contact line
- * (address + phone) as a signature.
+ * messages, not marketing) get NO appended footer at all: no unsubscribe block
+ * and no address/phone signature, so they read like a genuine personal note
+ * that ends on the producer's sign-off. Only marketing email carries the
+ * full identity + unsubscribe footer below.
  */
 export function senderFooterText(ctx: MergeContext, personal = false): string {
   if (personal) {
-    const parts = [ctx.agency.address, ctx.agency.phone].filter(Boolean);
-    return parts.length ? `\n\n${parts.join("\n")}` : "";
+    return "";
   }
   const addr = ctx.agency.address ? `\n${ctx.agency.address}` : "";
   return (
@@ -94,13 +94,11 @@ export function senderFooterText(ctx: MergeContext, personal = false): string {
   );
 }
 
-/** HTML sender-identity + unsubscribe footer. `personal` drops the unsubscribe block. */
+/** HTML sender-identity + unsubscribe footer. `personal` emails get no footer
+ *  at all — no unsubscribe block and no address/phone signature. */
 export function senderFooterHtml(ctx: MergeContext, personal = false): string {
   if (personal) {
-    const parts = [ctx.agency.address, ctx.agency.phone].filter(Boolean).map((p) => escapeHtml(p as string));
-    return parts.length
-      ? `<p style="color:#94a3b8;font-size:12px;line-height:1.5;margin-top:16px">${parts.join("<br/>")}</p>`
-      : "";
+    return "";
   }
   return (
     `<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0" />` +

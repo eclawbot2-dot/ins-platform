@@ -54,7 +54,7 @@ export default async function TouchpointTemplatesPage({
                 <td><Badge tone={touchpointCategoryTone(t.category)}>{TOUCHPOINT_CATEGORY_LABELS[t.category]}</Badge></td>
                 <td className="text-xs">{TOUCHPOINT_TRIGGER_LABELS[t.triggerType]}</td>
                 <td className="tabular-nums">{t.offsetDays !== 0 ? `${t.offsetDays > 0 ? "+" : ""}${t.offsetDays}d` : t.tenureMonths ? `${t.tenureMonths}mo` : "—"}</td>
-                <td><Badge tone="green">Personal · no unsubscribe</Badge></td>
+                <td><Badge tone="green">Personal · no footer</Badge></td>
                 <td>{t.requiresApproval ? <Badge tone="amber">Required</Badge> : <Badge tone="green">Auto</Badge>}</td>
                 <td>{t.active ? <Badge tone="green">Active</Badge> : <Badge tone="slate">Off</Badge>}</td>
                 <td className="text-right">

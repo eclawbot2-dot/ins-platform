@@ -94,13 +94,17 @@ describe("renderEmail", () => {
     expect(out.subject).toBe("New Walt");
     expect(out.text).toContain("Rewritten Tabor Agency");
   });
-  it("personal mode (client-specific, non-marketing) drops the unsubscribe footer", async () => {
+  it("personal mode (client-specific, non-marketing) appends NO footer — no unsubscribe, no address/phone", async () => {
     const out = await renderEmail("Happy Birthday, {{firstName}}!", "Hi {{firstName}},\n\nWishing you the best.", ctx(), { personal: true });
     expect(out.text).not.toContain("unsubscribe");
     expect(out.text).not.toContain("You're receiving this");
     expect(out.html).not.toContain("unsubscribe");
-    // but keeps a quiet contact signature
-    expect(out.text).toContain("665 Johnnie Dodds");
-    expect(out.text).toContain("843-555-0100");
+    // address + phone are removed from personal emails entirely
+    expect(out.text).not.toContain("665 Johnnie Dodds");
+    expect(out.text).not.toContain("843-555-0100");
+    expect(out.html).not.toContain("665 Johnnie Dodds");
+    expect(out.html).not.toContain("843-555-0100");
+    // the body sign-off is the last thing the client sees
+    expect(out.text.trim().endsWith("Wishing you the best.")).toBe(true);
   });
 });
