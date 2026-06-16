@@ -1294,13 +1294,13 @@ async function main() {
     // PAYMENT
     { key: "payment-upcoming", name: "Payment reminder (upcoming)", category: "PAYMENT", trigger: "PAYMENT_DUE_RELATIVE", offsetDays: -7,
       subject: "A friendly reminder: invoice {{invoiceNumber}}",
-      body: "Hi {{firstName}},\n\nJust a gentle heads-up that invoice {{invoiceNumber}} for {{invoiceAmount}} is due on {{dueDate}}. You can pay securely here whenever it's convenient: {{payNowUrl}}\n\nAlready taken care of? Thank you — please disregard. Questions? Call {{agencyPhone}}.\n\n{{agencyName}}" },
+      body: "Hi {{firstName}},\n\nJust a gentle heads-up that invoice {{invoiceNumber}} for {{invoiceAmount}} is due on {{dueDate}}. You can pay securely here whenever it's convenient: {{payNowUrl}}\n\nYou can also log in to your client portal anytime to review your payments and check your policy and account status: {{portalUrl}}\n\nAlready taken care of? Thank you — please disregard. Questions? Call {{agencyPhone}}.\n\n{{agencyName}}" },
     { key: "payment-receipt", name: "Payment receipt", category: "PAYMENT", trigger: "LIFECYCLE_EVENT",
       subject: "Payment received — thank you, {{firstName}}",
       body: "Hi {{firstName}},\n\nWe've received your payment for invoice {{invoiceNumber}} ({{invoiceAmount}}). Thank you! Your account is all set.\n\nWe appreciate you,\n{{agencyName}}" },
     { key: "payment-grace", name: "Payment past-due (grace)", category: "PAYMENT", trigger: "PAYMENT_DUE_RELATIVE", offsetDays: 5, requiresApproval: true,
       subject: "Let's keep your coverage active, {{firstName}}",
-      body: "Hi {{firstName}},\n\nWe noticed invoice {{invoiceNumber}} ({{invoiceAmount}}, due {{dueDate}}) is still open. We'd hate for a missed payment to affect your coverage, so we wanted to reach out kindly.\n\nYou can pay here: {{payNowUrl}} — or call {{agencyPhone}} and we'll sort it out together. If there's a hardship, tell us; we'll help.\n\n{{agencyName}}" },
+      body: "Hi {{firstName}},\n\nWe noticed invoice {{invoiceNumber}} ({{invoiceAmount}}, due {{dueDate}}) is still open. We'd hate for a missed payment to affect your coverage, so we wanted to reach out kindly.\n\nYou can pay here: {{payNowUrl}} — or call {{agencyPhone}} and we'll sort it out together. If there's a hardship, tell us; we'll help.\n\nYou can also log in to your client portal anytime to review your payments and check your policy and account status: {{portalUrl}}\n\n{{agencyName}}" },
     // CLAIM (sensitive → approval on follow-ups)
     { key: "claim-ack", name: "Claim acknowledgement", category: "CLAIM", trigger: "LIFECYCLE_EVENT",
       subject: "We've got your claim, {{firstName}} ({{claimNumber}})",
