@@ -1,12 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { Readable } from "node:stream";
-import { auth } from "@/lib/auth";
+import { requireApiSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { openUpload } from "@/lib/storage";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  // Staff-only: 401 on no session, 403 on a CLIENT (portal) session. Documents
+  // are book-wide for staff, but a portal client must never reach this raw-bytes
+  // route — they have a separate, visibility-gated portal download endpoint.
+  const gate = await requireApiSession();
+  if (gate instanceof Response) return gate;
 
   const { id } = await ctx.params;
   const doc = await prisma.document.findUnique({ where: { id } });

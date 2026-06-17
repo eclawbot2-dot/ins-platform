@@ -109,7 +109,7 @@ export function senderFooterHtml(ctx: MergeContext, personal = false): string {
     `</p>` +
     `<p style="color:#94a3b8;font-size:12px;line-height:1.5">` +
     `You're receiving this because you're a valued ${escapeHtml(ctx.agency.name)} client. ` +
-    `<a href="${ctx.unsubscribeUrl}" style="color:#64748b">Update email preferences or unsubscribe</a>.` +
+    `<a href="${escapeHtml(ctx.unsubscribeUrl)}" style="color:#64748b">Update email preferences or unsubscribe</a>.` +
     `</p>`
   );
 }

@@ -13,6 +13,10 @@ export type CsvRow = Record<
 >;
 
 const NEEDS_QUOTING = /[",\r\n]/;
+// Spreadsheet formula-injection guard: a cell beginning with one of these is
+// evaluated as a formula by Excel/Sheets. Neutralize by prefixing a single
+// quote so the value renders verbatim instead of executing.
+const FORMULA_LEAD = /^[=+\-@\t\r]/;
 
 function escape(v: unknown): string {
   if (v == null) return "";
@@ -22,7 +26,8 @@ function escape(v: unknown): string {
   if (typeof v === "object" && v !== null && typeof (v as { toNumber?: () => number }).toNumber === "function") {
     return String((v as { toNumber: () => number }).toNumber());
   }
-  const s = String(v);
+  let s = String(v);
+  if (FORMULA_LEAD.test(s)) s = `'${s}`;
   if (!NEEDS_QUOTING.test(s)) return s;
   return `"${s.replace(/"/g, '""')}"`;
 }
