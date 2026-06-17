@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { LineOfBusiness } from "@prisma/client";
 import {
@@ -120,13 +120,23 @@ type RepeatableProps<T> = {
 
 function Repeatable<T>({ prefix, initial, empty, render, addLabel }: RepeatableProps<T>) {
   const [rows, setRows] = useState<T[]>(initial.length ? initial : []);
+  // Stable per-row React keys. The inputs are uncontrolled (defaultValue),
+  // so keying on the array index would reuse a DOM node for a different row
+  // when a middle row is removed — leaking the removed row's typed values
+  // into its neighbour and dropping the last row on submit. A monotonic key
+  // pinned to each row keeps React reconciliation aligned with the data.
+  const keySeq = useRef(rows.length);
+  const [keys, setKeys] = useState<number[]>(() => rows.map((_, i) => i));
   return (
     <div className="space-y-3">
       {rows.map((row, i) => (
-        <div key={i} className="relative rounded-lg border border-slate-200 p-3">
+        <div key={keys[i]} className="relative rounded-lg border border-slate-200 p-3">
           <button
             type="button"
-            onClick={() => setRows(rows.filter((_, j) => j !== i))}
+            onClick={() => {
+              setRows(rows.filter((_, j) => j !== i));
+              setKeys(keys.filter((_, j) => j !== i));
+            }}
             className="absolute right-2 top-2 text-slate-400 hover:text-red-500"
             aria-label="Remove"
           >
@@ -136,7 +146,14 @@ function Repeatable<T>({ prefix, initial, empty, render, addLabel }: RepeatableP
         </div>
       ))}
       <input type="hidden" name={`${prefix}_count`} value={rows.length} />
-      <button type="button" onClick={() => setRows([...rows, { ...empty }])} className="btn btn-sm">
+      <button
+        type="button"
+        onClick={() => {
+          setRows([...rows, { ...empty }]);
+          setKeys([...keys, keySeq.current++]);
+        }}
+        className="btn btn-sm"
+      >
         <Plus className="h-3.5 w-3.5" /> {addLabel}
       </button>
     </div>
