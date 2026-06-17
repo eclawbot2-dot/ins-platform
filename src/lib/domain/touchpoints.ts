@@ -128,11 +128,19 @@ export function buildIdempotencyKey(templateKey: string, clientId: string, ancho
   return `${templateKey}:${clientId}:${day}`;
 }
 
-/** Recurring annual anchor: the next occurrence of month/day at/after asOf. */
+/** Recurring annual anchor: the next occurrence of month/day at/after asOf.
+ *  A Feb-29 anchor clamps to Feb-28 in non-leap years (matches addYears) so a
+ *  leap-day birthday/anniversary fires on Feb 28, not rolls forward to Mar 1. */
+function annualOccurrence(month: number, day: number, year: number): Date {
+  const candidate = new Date(Date.UTC(year, month, day));
+  // JS rolls Feb 29 -> Mar 1 in non-leap years; clamp back to last day of month.
+  if (candidate.getUTCMonth() !== month) return new Date(Date.UTC(year, month + 1, 0));
+  return candidate;
+}
 function nextAnnualOccurrence(month: number, day: number, asOf: Date): Date {
   const year = asOf.getUTCFullYear();
-  const thisYear = new Date(Date.UTC(year, month, day));
-  return utcDay(thisYear) >= utcDay(asOf) ? thisYear : new Date(Date.UTC(year + 1, month, day));
+  const thisYear = annualOccurrence(month, day, year);
+  return utcDay(thisYear) >= utcDay(asOf) ? thisYear : annualOccurrence(month, day, year + 1);
 }
 
 /** Months between two dates (whole months, anchored on day-of-month). */

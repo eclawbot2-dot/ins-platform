@@ -96,6 +96,13 @@ describe("dueTouchpoints — BIRTHDAY (recurring annual)", () => {
     const ctx = baseCtx({ dateOfBirth: new Date(Date.UTC(1980, 5, 14)) });
     expect(dueTouchpoints(tpl({ triggerType: "BIRTHDAY" }), ctx, new Date(Date.UTC(2026, 5, 13)))).toBeNull();
   });
+  it("clamps a Feb-29 birthday to Feb-28 in a non-leap year (not Mar 1)", () => {
+    const ctx = baseCtx({ dateOfBirth: new Date(Date.UTC(1980, 1, 29)) }); // leap-day birthday
+    const t = tpl({ key: "birthday", category: "APPRECIATION", triggerType: "BIRTHDAY", offsetDays: 0 });
+    // 2026 is not a leap year — should fire on Feb 28, not roll forward to Mar 1.
+    expect(dueTouchpoints(t, ctx, new Date(Date.UTC(2026, 1, 28)))).not.toBeNull();
+    expect(dueTouchpoints(t, ctx, new Date(Date.UTC(2026, 2, 1)))).toBeNull();
+  });
 });
 
 describe("dueTouchpoints — TENURE_MILESTONE", () => {
