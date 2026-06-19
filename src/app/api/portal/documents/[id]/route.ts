@@ -3,6 +3,7 @@ import { Readable } from "node:stream";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { openUpload } from "@/lib/storage";
+import { audit } from "@/lib/audit";
 
 /**
  * Client-portal document download. Hard rules:
@@ -38,6 +39,15 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
   const stream = openUpload(doc.storedPath);
   if (!stream) return NextResponse.json({ error: "file missing on disk" }, { status: 410 });
+
+  // Audit the portal download (which client user pulled which document).
+  await audit({
+    userId: session.userId,
+    action: "PORTAL_DOCUMENT_DOWNLOAD",
+    entityType: "Document",
+    entityId: doc.id,
+    detail: doc.fileName,
+  });
 
   return new NextResponse(Readable.toWeb(stream as Readable) as ReadableStream, {
     headers: {

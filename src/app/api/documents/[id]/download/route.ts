@@ -3,6 +3,7 @@ import { Readable } from "node:stream";
 import { requireApiSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { openUpload } from "@/lib/storage";
+import { audit } from "@/lib/audit";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   // Staff-only: 401 on no session, 403 on a CLIENT (portal) session. Documents
@@ -17,6 +18,15 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
   const stream = openUpload(doc.storedPath);
   if (!stream) return NextResponse.json({ error: "file missing on disk" }, { status: 410 });
+
+  // Audit the download (who pulled which document's bytes) — staff route.
+  await audit({
+    userId: gate.userId,
+    action: "DOCUMENT_DOWNLOAD",
+    entityType: "Document",
+    entityId: doc.id,
+    detail: doc.fileName,
+  });
 
   return new NextResponse(Readable.toWeb(stream as Readable) as ReadableStream, {
     headers: {
