@@ -74,11 +74,14 @@ export function renderTemplate(body: string, ctx: MergeContext): string {
 
 /**
  * Plain-text sender-identity + one-click unsubscribe footer (CAN-SPAM).
- * `personal` emails (birthday / anniversary / holiday greetings — relationship
- * messages, not marketing) get NO appended footer at all: no unsubscribe block
- * and no address/phone signature, so they read like a genuine personal note
- * that ends on the producer's sign-off. Only marketing email carries the
- * full identity + unsubscribe footer below.
+ * `personal=true` is reserved for genuinely SERVICING/TRANSACTIONAL mail
+ * (payment receipts, claim/renewal/onboarding servicing) — CAN-SPAM exempts
+ * those from the commercial footer, so they get NO appended footer and read
+ * like a personal note ending on the producer's sign-off.
+ *
+ * Appreciation (holiday/birthday) and satisfaction (NPS/review) email is
+ * relationship/marketing — the caller passes personal=false so the full
+ * footer below (agency postal address + unsubscribe) is always appended.
  */
 export function senderFooterText(ctx: MergeContext, personal = false): string {
   if (personal) {

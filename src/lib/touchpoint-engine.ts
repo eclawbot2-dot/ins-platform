@@ -276,6 +276,34 @@ const CATEGORY_OPT_FIELD = (cat: TouchpointTemplate["category"]): keyof CommPref
 const TRANSACTIONAL_TEMPLATE_KEYS = new Set(["payment-receipt"]);
 
 /**
+ * Categories that are genuinely SERVICING/TRANSACTIONAL relationship mail —
+ * a payment receipt, a claim update, a renewal notice, an onboarding welcome.
+ * CAN-SPAM exempts the "transactional or relationship" message from the
+ * commercial-email footer requirements, so these may render as a personal
+ * note (no unsubscribe + postal-address footer).
+ *
+ * APPRECIATION (holiday/birthday) and SATISFACTION (NPS/review-request) are
+ * NOT transactional — their primary purpose is relationship/marketing — so
+ * they MUST carry the full CAN-SPAM footer (postal address + unsubscribe).
+ * They are deliberately excluded here. (Whether legal ultimately classifies
+ * a holiday greeting as transactional is an open question; the safe default
+ * is to include the footer.)
+ */
+const PERSONAL_FOOTERLESS_CATEGORIES = new Set<TouchpointTemplate["category"]>([
+  "PAYMENT",
+  "CLAIM",
+  "RENEWAL",
+  "ONBOARDING",
+  "OFFBOARDING",
+]);
+
+/** Whether this template's email may render as a personal note (no CAN-SPAM
+ *  footer). True only for servicing/transactional categories. */
+function isPersonalCategory(category: TouchpointTemplate["category"]): boolean {
+  return PERSONAL_FOOTERLESS_CATEGORIES.has(category);
+}
+
+/**
  * Render + send every APPROVED touchpoint whose scheduledFor has arrived.
  * Per row: re-check doNotContact, category opt-out, recipient present, and
  * (SMS) quiet-hours + smsConsentAt. Blocked → SKIPPED+reason; otherwise
@@ -336,12 +364,14 @@ export async function sendDueTouchpoints(asOf: Date = new Date(), personalize?: 
     );
 
     try {
-      // Lifecycle touchpoints (birthday, reminders, renewals, payments, claims,
-      // onboarding, etc.) are ALL client-specific relationship/transactional
-      // messages — NOT marketing — so they drop the unsubscribe footer and read
-      // like a genuine note. Only promotional marketing email (the /marketing
-      // module) carries the unsubscribe.
-      const email = await renderEmail(row.template.subject, row.template.body, ctx, { personalize: ai, personal: true });
+      // CAN-SPAM footer decision is CATEGORY-driven. Only servicing /
+      // transactional categories (PAYMENT, CLAIM, RENEWAL, ONBOARDING,
+      // OFFBOARDING) may render as a personal note with no footer. APPRECIATION
+      // (holiday/birthday) and SATISFACTION (NPS/review) are relationship/
+      // marketing mail and MUST carry the full footer (postal address +
+      // unsubscribe) — personal=false forces it on.
+      const personal = isPersonalCategory(row.template.category);
+      const email = await renderEmail(row.template.subject, row.template.body, ctx, { personalize: ai, personal });
       const send = await sendEmail({ to: client.email!, subject: email.subject, text: email.text, html: email.html });
       if (send.ok) {
         await prisma.scheduledTouchpoint.update({
