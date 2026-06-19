@@ -279,16 +279,40 @@ export async function updatePolicy(id: string, formData: FormData) {
   redirect(`/policies/${id}?toast=${encodeURIComponent("Policy updated")}`);
 }
 
+// ── Lifecycle state-transition guards ────────────────────────────────
+// Each transition is gated by updateMany({ where: { id, status: { in:
+// <legal predecessors> } }). count === 0 means the policy was in an illegal
+// state (or vanished) — reject instead of doing a blind status overwrite that
+// could, e.g., resurrect a CANCELLED policy to ACTIVE. Mirrors the AR
+// invoice-transition guard in accounting/actions.ts.
+
+/** Statuses a policy may carry an endorsement against (an in-force term). */
+const ENDORSABLE_STATUSES: PolicyStatus[] = ["BOUND", "ACTIVE", "RENEWED"];
+
 export async function bindPolicy(id: string) {
   const session = await requireSession();
-  await prisma.policy.update({ where: { id }, data: { status: "BOUND", boundAt: new Date() } });
+  // Bind a quote → BOUND. Only a QUOTE may be bound.
+  const { count } = await prisma.policy.updateMany({
+    where: { id, status: "QUOTE" },
+    data: { status: "BOUND", boundAt: new Date() },
+  });
+  if (count === 0) {
+    redirect(`/policies/${id}?toastError=${encodeURIComponent("Only a quote can be bound")}`);
+  }
   await audit({ userId: session.userId, action: "POLICY_BIND", entityType: "Policy", entityId: id });
   redirect(`/policies/${id}?toast=${encodeURIComponent("Policy bound")}`);
 }
 
 export async function activatePolicy(id: string) {
   const session = await requireSession();
-  await prisma.policy.update({ where: { id }, data: { status: "ACTIVE" } });
+  // Activate a bound policy → ACTIVE. Only a BOUND policy may be activated.
+  const { count } = await prisma.policy.updateMany({
+    where: { id, status: "BOUND" },
+    data: { status: "ACTIVE" },
+  });
+  if (count === 0) {
+    redirect(`/policies/${id}?toastError=${encodeURIComponent("Only a bound policy can be activated")}`);
+  }
   await audit({ userId: session.userId, action: "POLICY_ACTIVATE", entityType: "Policy", entityId: id });
   redirect(`/policies/${id}?toast=${encodeURIComponent("Policy active")}`);
 }
@@ -317,7 +341,15 @@ export async function cancelPolicy(id: string, formData: FormData) {
 
 export async function nonRenewPolicy(id: string) {
   const session = await requireSession();
-  await prisma.policy.update({ where: { id }, data: { status: "NON_RENEWED" } });
+  // Non-renew an in-force / expiring term. A QUOTE, an already-CANCELLED,
+  // already-NON_RENEWED, or already-RENEWED term can't be non-renewed.
+  const { count } = await prisma.policy.updateMany({
+    where: { id, status: { in: ["BOUND", "ACTIVE", "EXPIRED"] } },
+    data: { status: "NON_RENEWED" },
+  });
+  if (count === 0) {
+    redirect(`/policies/${id}?toastError=${encodeURIComponent("Only an in-force or expired policy can be marked non-renewed")}`);
+  }
   await audit({ userId: session.userId, action: "POLICY_NON_RENEW", entityType: "Policy", entityId: id });
   redirect(`/policies/${id}?toast=${encodeURIComponent("Marked non-renewed")}`);
 }
@@ -326,6 +358,11 @@ export async function addEndorsement(policyId: string, formData: FormData) {
   await requireSession();
   const policy = await prisma.policy.findUnique({ where: { id: policyId } });
   if (!policy) redirect(`/policies?toastError=${encodeURIComponent("Policy not found")}`);
+  // Only an in-force term (BOUND/ACTIVE/RENEWED) can be endorsed — never a
+  // quote, cancelled, expired, or non-renewed term.
+  if (!ENDORSABLE_STATUSES.includes(policy.status)) {
+    redirect(`/policies/${policyId}?toastError=${encodeURIComponent("Endorsements require a bound, active, or renewed policy")}`);
+  }
   const effectiveDate = fDate(formData, "effectiveDate") ?? new Date();
   const annualized = fNum(formData, "premiumChange");
   const prorated = prorateEndorsement(annualized, policy.effectiveDate, policy.expirationDate, effectiveDate);
@@ -536,6 +573,11 @@ export async function processEndorsementRequest(requestId: string, formData: For
   });
   if (!req) redirect(`/policies?toastError=${encodeURIComponent("Request not found")}`);
   const policy = req.policy;
+  // Processing an endorsement request realizes an Endorsement + bumps premium —
+  // only valid against an in-force term.
+  if (!ENDORSABLE_STATUSES.includes(policy.status)) {
+    redirect(`/policies/${policy.id}?toastError=${encodeURIComponent("Endorsements require a bound, active, or renewed policy")}#endorsement-requests`);
+  }
   const effectiveDate = fDate(formData, "effectiveDate") ?? req.effectiveDate ?? new Date();
   const annualized = fNum(formData, "premiumChange");
   const description = fStr(formData, "description") || req.summary;
