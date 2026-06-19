@@ -1,9 +1,52 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/log";
 import { audit } from "@/lib/audit";
-import { evaluateTouchpoints, sendDueTouchpoints } from "@/lib/touchpoint-engine";
+import { evaluateTouchpoints, sendDueTouchpoints, type SendResult } from "@/lib/touchpoint-engine";
+
+/**
+ * Raise an in-app alert to every admin when a send sweep degraded — sends
+ * failed, or rows were selected but none went out (a transport/config
+ * outage, e.g. log-only in prod). Best-effort: never throws.
+ */
+async function alertAdminsOnSendFailure(send: SendResult): Promise<void> {
+  const failureMode =
+    send.failed > 0
+      ? `${send.failed} send${send.failed === 1 ? "" : "s"} failed`
+      : send.selected > 0 && send.sent === 0
+        ? `${send.selected} touchpoint${send.selected === 1 ? "" : "s"} were due but none sent (transport/config outage?)`
+        : null;
+  if (!failureMode) return;
+
+  log.error(`touchpoint send sweep degraded: ${failureMode}`, {
+    module: "touchpoints",
+    selected: send.selected,
+    sent: send.sent,
+    failed: send.failed,
+    skipped: send.skipped,
+  });
+  await audit({
+    action: "TOUCHPOINT_CRON_ALERT",
+    entityType: "ScheduledTouchpoint",
+    detail: failureMode,
+  });
+  try {
+    const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
+    if (admins.length === 0) return;
+    await prisma.notification.createMany({
+      data: admins.map((a) => ({
+        userId: a.id,
+        title: "Touchpoint sends are failing",
+        body: `${failureMode}. Check the email transport configuration and the touchpoint queue.`,
+        href: "/touchpoints",
+      })),
+    });
+  } catch (err) {
+    log.warn("touchpoint cron: admin alert write failed", { module: "touchpoints" }, err);
+  }
+}
 
 /**
  * Daily touchpoint engine — EVALUATE (scan the book, schedule due
@@ -53,6 +96,10 @@ export async function POST(req: NextRequest) {
   const evaluate = await evaluateTouchpoints(asOf, dryRun);
   const send = dryRun ? { selected: 0, sent: 0, skipped: 0, failed: 0 } : await sendDueTouchpoints(asOf);
 
+  // Durable last-run / heartbeat signal: the audit row below is the queryable
+  // record of every cron fire (action TOUCHPOINT_CRON_RUN). lastRunAt is also
+  // echoed in the response for any external heartbeat monitor.
+  const lastRunAt = asOf.toISOString();
   await audit({
     action: dryRun ? "TOUCHPOINT_CRON_DRYRUN" : "TOUCHPOINT_CRON_RUN",
     entityType: "ScheduledTouchpoint",
@@ -60,5 +107,8 @@ export async function POST(req: NextRequest) {
   });
   log.info("touchpoints cron complete", { module: "touchpoints", dryRun, evaluate, send });
 
-  return NextResponse.json({ ok: true, dryRun, evaluate, send }, { status: 200 });
+  // Alert admins when the send sweep degraded (failures, or due-but-none-sent).
+  if (!dryRun) await alertAdminsOnSendFailure(send);
+
+  return NextResponse.json({ ok: true, dryRun, lastRunAt, evaluate, send }, { status: 200 });
 }
