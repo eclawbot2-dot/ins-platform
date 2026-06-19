@@ -10,7 +10,9 @@ import {
   buildMimeMessage,
   chooseTransport,
   dwdGrantFixMessage,
+  emailHealthError,
   gmailFromHeader,
+  isProdEnv,
   isUnauthorizedClientError,
   parseFromHeader,
   resetGmailTransportCache,
@@ -98,6 +100,46 @@ describe("base64Url", () => {
 // ---------------------------------------------------------------------------
 // Transport selection
 // ---------------------------------------------------------------------------
+
+describe("emailHealthError (prod log-only is a misconfiguration)", () => {
+  it("is null outside production regardless of transport", () => {
+    expect(emailHealthError({ NODE_ENV: "development" })).toBeNull();
+    expect(emailHealthError({ NODE_ENV: "test", EMAIL_TRANSPORT: "log" })).toBeNull();
+    expect(isProdEnv({ NODE_ENV: "development" })).toBe(false);
+  });
+  it("flags a log-only transport in production with an actionable message", () => {
+    const err = emailHealthError({ NODE_ENV: "production" });
+    expect(err).toBeTruthy();
+    expect(err).toContain("EMAIL_TRANSPORT");
+    expect(isProdEnv({ NODE_ENV: "production" })).toBe(true);
+  });
+  it("is null in production once a real transport is configured", () => {
+    expect(emailHealthError({ NODE_ENV: "production", EMAIL_TRANSPORT: "gmail" })).toBeNull();
+    expect(emailHealthError({ NODE_ENV: "production", EMAIL_TRANSPORT: "resend" })).toBeNull();
+  });
+});
+
+describe("sendEmail log-only transport honesty (prod vs dev)", () => {
+  const saved = process.env.NODE_ENV;
+  afterEach(() => {
+    if (saved === undefined) delete (process.env as Record<string, string | undefined>).NODE_ENV;
+    else (process.env as Record<string, string | undefined>).NODE_ENV = saved;
+    delete process.env.EMAIL_TRANSPORT;
+  });
+  it("returns ok=false in production when no real transport is configured (never silently 'sent')", async () => {
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+    delete process.env.EMAIL_TRANSPORT;
+    const res = await sendEmail({ to: "c@example.com", subject: "S", text: "T" });
+    expect(res.ok).toBe(false);
+    expect(res.transport).toBe("log");
+  });
+  it("still returns ok=true for the log transport in dev", async () => {
+    (process.env as Record<string, string | undefined>).NODE_ENV = "development";
+    delete process.env.EMAIL_TRANSPORT;
+    const res = await sendEmail({ to: "c@example.com", subject: "S", text: "T" });
+    expect(res).toEqual({ ok: true, transport: "log" });
+  });
+});
 
 describe("chooseTransport", () => {
   it("selects gmail / resend / log from EMAIL_TRANSPORT", () => {

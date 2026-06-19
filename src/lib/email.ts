@@ -56,12 +56,46 @@ export function chooseTransport(env: Record<string, string | undefined> = proces
   return "log";
 }
 
+/** True in a production deployment. Centralized so tests can reason about it. */
+export function isProdEnv(env: Record<string, string | undefined> = process.env): boolean {
+  return env.NODE_ENV === "production";
+}
+
+/**
+ * Health assertion: a real transport (gmail|resend) MUST be configured in
+ * production. Returns the misconfiguration reason, or null when healthy.
+ * Exported so a startup/health probe can surface it loudly instead of
+ * silently never sending.
+ */
+export function emailHealthError(env: Record<string, string | undefined> = process.env): string | null {
+  if (!isProdEnv(env)) return null;
+  if (chooseTransport(env) === "log") {
+    return (
+      "EMAIL_TRANSPORT is unset/log-only in production — outbound email would be silently dropped. " +
+      "Set EMAIL_TRANSPORT=gmail (with a Workspace SA key) or EMAIL_TRANSPORT=resend (with RESEND_API_KEY)."
+    );
+  }
+  return null;
+}
+
 export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
   const transport = chooseTransport();
   const from = process.env.EMAIL_FROM ?? `no-reply@${BRAND.domain}`;
   try {
     if (transport === "gmail") return await sendViaGmail(msg, from);
     if (transport === "resend") return await sendViaResend(msg, from);
+    // Log-only transport. In production this is a MISCONFIGURATION, not a
+    // valid no-op: returning ok=true would let callers (e.g. the touchpoint
+    // engine) mark rows SENT even though nothing was delivered. Fail loudly
+    // and honestly so the row stays FAILED and the gap is visible.
+    if (isProdEnv()) {
+      log.error(
+        "email NOT SENT — log-only transport in production (no real transport configured). " +
+          (emailHealthError() ?? ""),
+        { module: "email", to: String(msg.to), subject: msg.subject },
+      );
+      return { ok: false, transport: "log", error: "log-only transport in production — email not sent" };
+    }
     log.info("email (log-only transport)", {
       module: "email",
       to: String(msg.to),
