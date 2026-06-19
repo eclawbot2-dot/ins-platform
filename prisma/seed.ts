@@ -3,20 +3,77 @@
  *
  *   npm run db:seed   (or npm run setup)
  *
- * Wipes and re-creates all rows (dev-only data). Logins:
- *   staff admin:   b@taboragency.com / Tabor123!
+ * Wipes and re-creates all rows (dev-only data). DESTRUCTIVE: refuses to run
+ * against production or a non-local DATABASE_URL host unless
+ * ALLOW_DESTRUCTIVE_SEED=1 is set. Logins printed once at the end:
+ *   staff admin:   b@taboragency.com / <random, or SEED_ADMIN_PASSWORD>
  *   client portal: client@taboragency.com / Client2026!
  */
 
 import "dotenv/config";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { PrismaClient, type LineOfBusiness, type PolicyStatus, type TouchpointCategory as TouchpointCategoryT, type TouchpointTrigger as TouchpointTriggerT } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" });
 const prisma = new PrismaClient({ adapter });
+
+// ── Destructive-seed guard ───────────────────────────────────────────
+// This seed wipes EVERY table. It is dev-only fixture data and must never
+// run against a production DB or a non-local host by accident (a single
+// `npm run setup` would erase the live book). Refuse unless the operator
+// explicitly opts in with ALLOW_DESTRUCTIVE_SEED=1.
+
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+/**
+ * Classify a DATABASE_URL's host for the seed guard. FAILS CLOSED: a URL that
+ * is set but unparseable (e.g. libpq keyword form `host=prod port=5432 ...`,
+ * which `new URL()` and a simple `@host` regex both miss) is reported as
+ * NON-local/unknown, NOT as local — so an unrecognized prod connection string
+ * can never slip past as "localhost". Only a genuinely unset/empty URL is
+ * treated as "no host" (local-OK).
+ */
+function databaseHostClass(url: string | undefined): "none" | "local" | "remote" {
+  if (!url || url.trim() === "") return "none";
+  let host: string | null = null;
+  try {
+    host = new URL(url).hostname.toLowerCase() || null;
+  } catch {
+    const m = /@([^:/?\s]+)/.exec(url);
+    host = m ? m[1].toLowerCase() : null;
+  }
+  // Set-but-unparseable host → treat as remote (unsafe), never local.
+  if (host === null) return "remote";
+  return LOCAL_HOSTS.has(host) ? "local" : "remote";
+}
+
+/**
+ * Throw unless it is safe to wipe-and-seed. Safe = the override is set, OR
+ * NODE_ENV is not production AND the DB host is unset/local. A production
+ * NODE_ENV, OR any remote/unparseable host, aborts with an actionable message
+ * before a single row is deleted.
+ */
+function assertSafeToSeed(): void {
+  if (process.env.ALLOW_DESTRUCTIVE_SEED === "1") {
+    console.warn("⚠️  ALLOW_DESTRUCTIVE_SEED=1 — running the destructive seed by explicit override.");
+    return;
+  }
+  const hostClass = databaseHostClass(process.env.DATABASE_URL);
+  const isProd = process.env.NODE_ENV === "production";
+  if (isProd || hostClass === "remote") {
+    throw new Error(
+      "Refusing to run the destructive seed: it deleteMany()s every table.\n" +
+        `  NODE_ENV=${process.env.NODE_ENV ?? "(unset)"}, DATABASE_URL host=${hostClass} ` +
+        "(remote = non-local or an unrecognized connection-string form).\n" +
+        "  This seed is for LOCAL dev databases only. If you REALLY mean to wipe this DB, " +
+        "re-run with ALLOW_DESTRUCTIVE_SEED=1.",
+    );
+  }
+}
 
 // ── Date helpers (UTC, relative to "today") ──────────────────────────
 
@@ -39,7 +96,14 @@ function round2(n: number): number {
 }
 
 async function main() {
+  assertSafeToSeed();
   console.log("Seeding ins-platform…");
+
+  // Admin credential: never hardcode a real-mailbox password. Honor an
+  // explicit SEED_ADMIN_PASSWORD when given, else generate a random one and
+  // print it ONCE so the dev seed stays usable locally without baking a known
+  // password into source.
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD?.trim() || crypto.randomBytes(12).toString("base64url");
 
   // ── Wipe (dependency order) ────────────────────────────────────────
   await prisma.$transaction([
@@ -106,7 +170,7 @@ async function main() {
 
   // ── Users ──────────────────────────────────────────────────────────
   const pw = await bcrypt.hash("Ins2026!", 12);
-  const pwAdmin = await bcrypt.hash("Tabor123!", 12);
+  const pwAdmin = await bcrypt.hash(adminPassword, 12);
   const [eric, sarah, james, dana, molly] = await Promise.all([
     prisma.user.create({
       data: { email: "b@taboragency.com", name: "Eric Bowman", password: pwAdmin, role: "ADMIN", npn: "18223344", phone: "843-555-0100" },
@@ -1618,8 +1682,11 @@ async function main() {
     `${counts[4]} leads, ${counts[5]} quotes, ${counts[6]} claims, ${counts[7]} statements, ` +
     `${counts[8]} licenses, ${counts[9]} campaigns, ${counts[10]} invoices, ${counts[11]} certificates.`,
   );
-  console.log("Admin login: b@taboragency.com / Tabor123!");
+  console.log("──────────────────────────────────────────────");
+  console.log(`Admin login: b@taboragency.com / ${adminPassword}`);
+  console.log("  (set SEED_ADMIN_PASSWORD to choose this; otherwise it is randomly generated each seed)");
   console.log("Portal login: client@taboragency.com / Client2026! (Harborview Builders LLC)");
+  console.log("──────────────────────────────────────────────");
 }
 
 main()
