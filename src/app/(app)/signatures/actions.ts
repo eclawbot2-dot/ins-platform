@@ -86,10 +86,22 @@ async function sendEnvelopeInternal(id: string, userId: string): Promise<void> {
     }
   }
 
-  await prisma.signatureRequest.update({
-    where: { id },
+  // Guard the SENT write against the async dispatch TOCTOU: only DRAFT may
+  // advance to SENT (per the state machine), and the status could have moved
+  // while dispatchEnvelope awaited. If it's no longer DRAFT, leave it be.
+  const { count } = await prisma.signatureRequest.updateMany({
+    where: { id, status: "DRAFT" },
     data: { status: "SENT", sentAt: new Date(), envelopeId },
   });
+  if (count === 0) {
+    // Lost the race: the request advanced past DRAFT while we awaited dispatch.
+    // If a real envelope was already created, it's now orphaned — log it so the
+    // dangling provider envelope is traceable.
+    if (envelopeId) {
+      log.warn("esign: envelope dispatched but request no longer DRAFT — orphaned", { module: "signatures", id, envelopeId });
+    }
+    return;
+  }
   await audit({ userId, action: "SIGNATURE_REQUEST_SEND", entityType: "SignatureRequest", entityId: id });
 }
 

@@ -329,10 +329,15 @@ export async function cancelPolicy(id: string, formData: FormData) {
     method === "SHORT_RATE"
       ? shortRateReturn(premium, policy.effectiveDate, policy.expirationDate, cancelDate)
       : proRataReturn(premium, policy.effectiveDate, policy.expirationDate, cancelDate);
-  await prisma.policy.update({
-    where: { id },
+  // Only an in-force / expired term may be cancelled — never re-cancel a
+  // CANCELLED term, nor cancel a QUOTE or an already-NON_RENEWED one.
+  const { count } = await prisma.policy.updateMany({
+    where: { id, status: { in: ["BOUND", "ACTIVE", "RENEWED", "EXPIRED"] } },
     data: { status: "CANCELLED", cancelledAt: cancelDate, cancellationReason: `${reason} (${method === "SHORT_RATE" ? "short-rate" : "pro-rata"} return ≈ $${returned.toFixed(2)})` },
   });
+  if (count === 0) {
+    redirect(`/policies/${id}?toastError=${encodeURIComponent("Only an in-force or expired policy can be cancelled")}`);
+  }
   await audit({ userId: session.userId, action: "POLICY_CANCEL", entityType: "Policy", entityId: id, detail: reason });
   // A kind save-attempt outreach when a policy is cancelled (needs approval).
   await scheduleTouchpoint("cancel-ack-save", policy!.clientId, { related: { type: "Policy", id }, anchorKey: `cancel:${id}` });
@@ -425,6 +430,18 @@ export async function renewPolicy(id: string, formData: FormData) {
     redirect(`/policies/${id}?toastError=${encodeURIComponent(`Policy number ${newNumber} already exists`)}`);
   }
 
+  // Mark the old term RENEWED first, guarding the transition — only a
+  // BOUND/ACTIVE/EXPIRED term may be renewed, never a QUOTE, CANCELLED,
+  // NON_RENEWED, or already-RENEWED one. Doing this before creating the
+  // next-term policy avoids leaving an orphaned renewal on a stale state.
+  const { count: renewedCount } = await prisma.policy.updateMany({
+    where: { id, status: { in: ["BOUND", "ACTIVE", "EXPIRED"] } },
+    data: { status: "RENEWED" },
+  });
+  if (renewedCount === 0) {
+    redirect(`/policies/${id}?toastError=${encodeURIComponent("Only a bound, active, or expired policy can be renewed")}`);
+  }
+
   const renewal = await prisma.policy.create({
     data: {
       policyNumber: newNumber,
@@ -447,7 +464,6 @@ export async function renewPolicy(id: string, formData: FormData) {
     },
   });
   await prisma.policyProducerSplit.create({ data: { policyId: renewal.id, producerId: policy.producerId, pct: 100 } });
-  await prisma.policy.update({ where: { id }, data: { status: "RENEWED" } });
   await prisma.renewal.updateMany({
     where: { policyId: id, status: { notIn: ["RENEWED", "LOST"] } },
     data: { status: "RENEWED" },

@@ -49,7 +49,15 @@ export async function addQuote(quoteRequestId: string, formData: FormData) {
 
 export async function setQuoteStatus(quoteRequestId: string, quoteId: string, status: QuoteStatus) {
   await requireSession();
-  await prisma.quote.update({ where: { id: quoteId }, data: { status } });
+  // Don't re-status a terminal quote: an ACCEPTED quote is bound to a policy
+  // and a DECLINED one is closed. Only a still-open quote may be moved.
+  const { count } = await prisma.quote.updateMany({
+    where: { id: quoteId, status: { in: ["DRAFT", "SUBMITTED", "RECEIVED", "PRESENTED"] } },
+    data: { status },
+  });
+  if (count === 0) {
+    redirect(`/quotes/${quoteRequestId}?toastError=${encodeURIComponent("This quote is already accepted or declined and can't be re-statused")}`);
+  }
   if (status === "PRESENTED") {
     await prisma.quoteRequest.update({ where: { id: quoteRequestId }, data: { status: "PRESENTED" } });
   }
@@ -59,7 +67,15 @@ export async function setQuoteStatus(quoteRequestId: string, quoteId: string, st
 
 export async function markRequestLost(quoteRequestId: string) {
   await requireSession();
-  await prisma.quoteRequest.update({ where: { id: quoteRequestId }, data: { status: "LOST" } });
+  // A bound (won) or already-lost request can't be marked lost — only an
+  // open / quoted / presented request still in play.
+  const { count } = await prisma.quoteRequest.updateMany({
+    where: { id: quoteRequestId, status: { in: ["OPEN", "QUOTED", "PRESENTED"] } },
+    data: { status: "LOST" },
+  });
+  if (count === 0) {
+    redirect(`/quotes/${quoteRequestId}?toastError=${encodeURIComponent("Only an open request can be marked lost")}`);
+  }
   redirect(`/quotes/${quoteRequestId}?toast=${encodeURIComponent("Marked lost")}`);
 }
 
