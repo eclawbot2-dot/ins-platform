@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/page-header";
@@ -91,11 +92,11 @@ export default async function AccountingPage({
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <a href="/accounting" className={`btn btn-sm ${!statusFilter ? "btn-primary" : ""}`}>All</a>
+        <Link href="/accounting" className={`btn btn-sm ${!statusFilter ? "btn-primary" : ""}`}>All</Link>
         {(["DRAFT", "SENT", "PARTIAL", "PAID", "VOID"] as const).map((s) => (
-          <a key={s} href={`/accounting?status=${s}`} className={`btn btn-sm ${statusFilter === s ? "btn-primary" : ""}`}>
+          <Link key={s} href={`/accounting?status=${s}`} className={`btn btn-sm ${statusFilter === s ? "btn-primary" : ""}`}>
             {s}
-          </a>
+          </Link>
         ))}
       </div>
 

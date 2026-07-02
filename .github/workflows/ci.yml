@@ -29,5 +29,8 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Lint
+        run: npx eslint
+
       - name: Unit tests
         run: npx vitest run

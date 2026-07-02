@@ -5,6 +5,48 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/log";
 import { audit } from "@/lib/audit";
 import { evaluateTouchpoints, sendDueTouchpoints, type SendResult } from "@/lib/touchpoint-engine";
+import { approvalOverdueCutoff, approvalOverdueMessage } from "@/lib/domain/touchpoints";
+
+/**
+ * Alert admins about PENDING touchpoints stuck past their scheduledFor.
+ * The send sweep only touches APPROVED rows, so an unapproved touchpoint
+ * silently never sends — this is the loud signal that the approval queue
+ * needs eyes. De-duplicated: an admin with an UNREAD notification of the
+ * same title is not re-notified. Kill switch: TOUCHPOINT_APPROVAL_ALERTS=off.
+ * Best-effort: never throws.
+ */
+const APPROVAL_ALERT_TITLE = "Touchpoints awaiting approval";
+async function alertAdminsOnStalePendingApprovals(asOf: Date): Promise<void> {
+  if ((process.env.TOUCHPOINT_APPROVAL_ALERTS ?? "").trim().toLowerCase() === "off") return;
+  try {
+    const stale = await prisma.scheduledTouchpoint.findMany({
+      where: { status: "PENDING", scheduledFor: { lte: approvalOverdueCutoff(asOf) } },
+      select: { scheduledFor: true },
+      orderBy: { scheduledFor: "asc" },
+    });
+    if (stale.length === 0) return;
+    const detail = approvalOverdueMessage(stale.length, stale[0]!.scheduledFor, asOf);
+    log.warn(`touchpoint approval queue stale: ${detail}`, { module: "touchpoints", pending: stale.length });
+    await audit({ action: "TOUCHPOINT_APPROVAL_OVERDUE", entityType: "ScheduledTouchpoint", detail });
+    const admins = await prisma.user.findMany({ where: { role: "ADMIN", active: true }, select: { id: true } });
+    if (admins.length === 0) return;
+    const alreadyNotified = new Set(
+      (
+        await prisma.notification.findMany({
+          where: { title: APPROVAL_ALERT_TITLE, readAt: null, userId: { in: admins.map((a) => a.id) } },
+          select: { userId: true },
+        })
+      ).map((n) => n.userId),
+    );
+    const targets = admins.filter((a) => !alreadyNotified.has(a.id));
+    if (targets.length === 0) return;
+    await prisma.notification.createMany({
+      data: targets.map((a) => ({ userId: a.id, title: APPROVAL_ALERT_TITLE, body: detail, href: "/touchpoints" })),
+    });
+  } catch (err) {
+    log.warn("touchpoint cron: stale-approval alert failed", { module: "touchpoints" }, err);
+  }
+}
 
 /**
  * Raise an in-app alert to every admin when a send sweep degraded — sends
@@ -33,7 +75,7 @@ async function alertAdminsOnSendFailure(send: SendResult): Promise<void> {
     detail: failureMode,
   });
   try {
-    const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
+    const admins = await prisma.user.findMany({ where: { role: "ADMIN", active: true }, select: { id: true } });
     if (admins.length === 0) return;
     await prisma.notification.createMany({
       data: admins.map((a) => ({
@@ -107,8 +149,12 @@ export async function POST(req: NextRequest) {
   });
   log.info("touchpoints cron complete", { module: "touchpoints", dryRun, evaluate, send });
 
-  // Alert admins when the send sweep degraded (failures, or due-but-none-sent).
-  if (!dryRun) await alertAdminsOnSendFailure(send);
+  // Alert admins when the send sweep degraded (failures, or due-but-none-sent),
+  // and when PENDING rows are stuck past their scheduledFor (never send).
+  if (!dryRun) {
+    await alertAdminsOnSendFailure(send);
+    await alertAdminsOnStalePendingApprovals(asOf);
+  }
 
   return NextResponse.json({ ok: true, dryRun, lastRunAt, evaluate, send }, { status: 200 });
 }

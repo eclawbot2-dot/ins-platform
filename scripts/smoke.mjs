@@ -4,11 +4,22 @@
  * public lead-intake API. Run against a server already listening:
  *
  *   node scripts/smoke.mjs [baseUrl]   (default http://localhost:3220)
+ *
+ * Staff credentials come from SMOKE_EMAIL / SMOKE_PASSWORD. The seed
+ * intentionally RANDOMIZES the admin password (unless SEED_ADMIN_PASSWORD
+ * was set), so there is no hardcoded default that works against a live
+ * database — without env creds the staff checks fail with the hint below.
  */
 
 const BASE = process.argv[2] ?? "http://localhost:3220";
-const EMAIL = "b@taboragency.com";
-const PASSWORD = "Tabor123!";
+const EMAIL = process.env.SMOKE_EMAIL ?? "b@taboragency.com";
+const PASSWORD = process.env.SMOKE_PASSWORD ?? "";
+if (!process.env.SMOKE_PASSWORD) {
+  console.log(
+    "WARN  SMOKE_PASSWORD not set — the seeded admin password is randomized, so staff-surface " +
+      "checks will fail. Set SMOKE_EMAIL/SMOKE_PASSWORD to a real staff login.",
+  );
+}
 
 const jar = new Map();
 function storeCookies(res) {

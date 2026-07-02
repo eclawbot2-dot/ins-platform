@@ -264,3 +264,30 @@ export function dueTouchpoints(
       return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Approval-queue staleness (pure — drives the cron's overdue-approval alert)
+// ---------------------------------------------------------------------------
+
+/**
+ * Days a PENDING (requires-approval) touchpoint may sit past its
+ * scheduledFor before the daily cron nags the admins. Rows in PENDING are
+ * invisible failures otherwise: the engine only sends APPROVED rows, so an
+ * unapproved touchpoint silently never goes out.
+ */
+export const APPROVAL_OVERDUE_GRACE_DAYS = 2;
+
+/** Rows scheduled on/before this instant are considered approval-overdue. */
+export function approvalOverdueCutoff(asOf: Date, graceDays: number = APPROVAL_OVERDUE_GRACE_DAYS): Date {
+  return new Date(asOf.getTime() - graceDays * 24 * 60 * 60 * 1000);
+}
+
+/** Human message for the admin notification / audit detail. */
+export function approvalOverdueMessage(count: number, oldestScheduledFor: Date, asOf: Date): string {
+  const days = Math.max(0, Math.floor((asOf.getTime() - oldestScheduledFor.getTime()) / (24 * 60 * 60 * 1000)));
+  return (
+    `${count} touchpoint${count === 1 ? "" : "s"} awaiting approval ` +
+    `(oldest was scheduled for ${oldestScheduledFor.toISOString().slice(0, 10)}, ~${days} day${days === 1 ? "" : "s"} ago). ` +
+    `PENDING rows never send — review and approve or skip them.`
+  );
+}

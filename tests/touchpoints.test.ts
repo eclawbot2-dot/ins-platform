@@ -7,6 +7,9 @@ import {
   matchesAudience,
   holidayDate,
   monthsBetween,
+  approvalOverdueCutoff,
+  approvalOverdueMessage,
+  APPROVAL_OVERDUE_GRACE_DAYS,
   type ClientTouchpointCtx,
   type TouchpointTemplateLike,
   type CommPrefsLike,
@@ -164,5 +167,30 @@ describe("monthsBetween", () => {
   it("counts whole months anchored on day-of-month", () => {
     expect(monthsBetween(new Date(Date.UTC(2023, 0, 15)), new Date(Date.UTC(2026, 0, 15)))).toBe(36);
     expect(monthsBetween(new Date(Date.UTC(2023, 0, 15)), new Date(Date.UTC(2026, 0, 14)))).toBe(35);
+  });
+});
+
+describe("approval-overdue alerting (pure)", () => {
+  it("cutoff is graceDays before asOf", () => {
+    const asOf = new Date(Date.UTC(2026, 6, 2, 11, 0, 0));
+    expect(approvalOverdueCutoff(asOf).toISOString()).toBe("2026-06-30T11:00:00.000Z");
+    expect(approvalOverdueCutoff(asOf, 0).toISOString()).toBe(asOf.toISOString());
+  });
+  it("default grace period is 2 days", () => {
+    expect(APPROVAL_OVERDUE_GRACE_DAYS).toBe(2);
+  });
+  it("message reports count, oldest date, and age in days", () => {
+    const asOf = new Date(Date.UTC(2026, 6, 2));
+    const msg = approvalOverdueMessage(5, new Date(Date.UTC(2026, 5, 13)), asOf);
+    expect(msg).toContain("5 touchpoints awaiting approval");
+    expect(msg).toContain("2026-06-13");
+    expect(msg).toContain("~19 days ago");
+    expect(msg).toContain("never send");
+  });
+  it("singularizes correctly", () => {
+    const asOf = new Date(Date.UTC(2026, 6, 2));
+    const msg = approvalOverdueMessage(1, new Date(Date.UTC(2026, 6, 1)), asOf);
+    expect(msg).toContain("1 touchpoint awaiting approval");
+    expect(msg).toContain("~1 day ago");
   });
 });

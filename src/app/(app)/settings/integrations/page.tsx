@@ -62,7 +62,7 @@ export default async function IntegrationsPage() {
 
           {!xeroConfigured ? (
             <div className="text-sm text-slate-600">
-              <p className="mb-2">To enable Xero invoice sync and online "Pay now" links:</p>
+              <p className="mb-2">To enable Xero invoice sync and online &quot;Pay now&quot; links:</p>
               <ol className="list-decimal space-y-1 pl-5 text-xs">
                 <li>Create an app at developer.xero.com → My Apps (OAuth 2.0, web app).</li>
                 <li>
@@ -72,7 +72,7 @@ export default async function IntegrationsPage() {
                 <li>Return here and click Connect.</li>
               </ol>
               <p className="mt-2 text-xs text-slate-400">
-                Payments policy: invoices surface Xero "Pay now" links only — never direct card charges.
+                Payments policy: invoices surface Xero &quot;Pay now&quot; links only — never direct card charges.
               </p>
             </div>
           ) : (

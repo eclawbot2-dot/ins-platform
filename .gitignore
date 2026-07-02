@@ -37,3 +37,6 @@ yarn-error.log*
 
 # service logs
 /logs
+
+# autodeploy runtime marker (written by autodeploy-platforms.sh on the host)
+.autodeploy-built-sha

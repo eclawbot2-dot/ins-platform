@@ -16,12 +16,11 @@ links are built from `PORTAL_URL`.
 
 ## Services (Windows)
 
-Intended service layout (register with nssm or `sc.exe` when promoting to
-always-on; not yet installed by this repo):
+Installed service layout (nssm; both AUTO_START):
 
 | Service | Command | Notes |
 | --- | --- | --- |
-| `ins-next` | `npm run start` in `C:\Users\bot\Projects\ins-platform` | Port 3220; needs `.env` present |
+| `ins-platform` | `npm run start` in `C:\Users\bot\Projects\ins-platform` | Port 3220; needs `.env` present. The name is **`ins-platform`**, NOT `ins-next` — `net stop ins-platform && net start ins-platform`. (`autodeploy-platforms.sh` restarts it by this name.) |
 | `ins-cloudflared` | `cloudflared tunnel run <tunnel>` | Maps ins.jahdev.com → http://localhost:3220 |
 
 Manual run (foreground):
@@ -66,14 +65,15 @@ curl -s -X POST "http://localhost:3220/api/cron/touchpoints?dryRun=1" \
 | `AUTH_SECRET` | yes | `openssl rand -base64 32`; also keys integration-token encryption |
 | `NEXTAUTH_URL` / `APP_URL` | yes | `https://ins.jahdev.com` — all absolute URLs derive from this |
 | `AUTH_TRUST_HOST` | yes | `true` (behind the tunnel) |
-| `EMAIL_TRANSPORT` | no | `log` (default, no sends) or `resend` |
-| `RESEND_API_KEY` | for resend | Send-only key; **verify ins.jahdev.com in Resend first** |
-| `EMAIL_FROM` | no | `no-reply@ins.jahdev.com` — never braetr.com |
+| `EMAIL_TRANSPORT` | no | `gmail` (**LIVE** — Gmail API via Workspace SA + DWD, impersonating `GMAIL_SENDER_SUBJECT`; verified end-to-end 2026-07-02), `resend`, or `log` (default; no sends — logged as a loud startup + per-send error in prod) |
+| `RESEND_API_KEY` | fallback | Send-only key; automatic fallback when the gmail path is blocked. Sender domain `taboragency.com` is verified in Resend |
+| `EMAIL_FROM` | no | `Tabor Agency <no-reply@taboragency.com>` — never braetr.com |
 | `PORTAL_URL` | no | Base URL for client-facing links (portal invites); default `https://ins.jahdev.com`, switch to `https://portal.taboragency.com` after NS cutover |
 | `LEAD_INTAKE_KEY` | yes | Shared secret for `POST /api/public/leads` |
 | `CRON_KEY` | yes | Shared secret for `POST /api/cron/touchpoints` (the `ins-touchpoints` task). If unset, the route 503s and never runs unauthenticated. |
 | `ANTHROPIC_API_KEY` | no | Powers (1) the dormant touchpoint-copy rewrite (with `TOUCHPOINT_AI=on`) and (2) the **AI Compare / coverage-analysis tool** (`/compare`, `/tools/coverage-analysis`, `/portal/checkup`). Set → AI extraction + narrative light up automatically (`claude-opus-4-8`, billed per use). Unset → compare tool runs in **manual-review mode** with the deterministic gap rules still producing full reports; uploads are stored + queued for staff. |
 | `AI_MODEL` | no | Override for the compare-tool model. Default `claude-opus-4-8`. |
+| `TOUCHPOINT_APPROVAL_ALERTS` | no | `off` disables the daily admin alert for PENDING touchpoints stuck >2 days past their scheduledFor (they never send until approved). Default: on. |
 | `TOUCHPOINT_AI` | no | `on` + `ANTHROPIC_API_KEY` set → AI rewrite of touchpoint copy. Unset → seeded templates only; never blocks a send. |
 | `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` | for Xero | See Xero setup below |
 | `GOOGLE_WORKSPACE_SA_KEY_FILE` | no | Default `C:/Users/bot/secrets/ins-workspace-sa.json`; app degrades cleanly when absent |
